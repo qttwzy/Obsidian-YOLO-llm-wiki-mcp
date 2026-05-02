@@ -16,11 +16,13 @@
 
 ![三通道融合搜索](docs/images/search-flow.svg)
 
-#### 2. 语义关联巡检（Lint）
+#### 2. 双引擎关联巡检（向量 + 图拓扑）
 
-自动扫描知识库中语义高度相似但缺少 Wikilink 的页面对，帮助发现隐藏的知识关联。支持误报标记，避免重复干扰。
+向量 Lint 发现"语义相似但未链接"的页面对，图拓扑 Lint 发现"结构上缺失连接"和"孤立节点"。两者并行运行，输出四类结果：强确认（双引擎一致）、语义补链、结构检查、结构洞见。支持误报标记，避免重复干扰。
 
-![语义关联巡检](docs/images/lint-flow.svg)
+#### 3. 图拓扑分析
+
+基于 4-Signal 相关性模型（直接链接、源文件重叠、共同邻居 Adamic-Adar、类型亲和度）构建知识图谱，使用动态权重因子（热门节点惩罚、稀缺链接奖励、多信号叠加奖励）自动发现真正有价值的连接。纯文件 IO，零 API 成本。
 
 #### 3. 人机协作决策工作流
 
@@ -62,7 +64,9 @@ LLM 遇到矛盾或不确定的信息时，不会自行判断，而是创建结�
 | 工具 | 说明 |
 |------|------|
 | `search_wiki` | 三通道并行搜索（grep、页面向量、PGlite 分块） |
-| `lint_connections` | 查找语义相似但尚未建立链接的页面 |
+| `lint_full` | 双引擎 Lint：向量语义 + 图拓扑分析，输出四类候选对和结构洞见 |
+| `build_wiki_graph` | 构建/重建知识图谱（纯文件 IO，零 API 成本） |
+| `update_wiki_graph` | 编辑页面后增量更新图数据（先 diff 分析，再确认语义变化） |
 | `mark_skipped_connection` | 标记误报的检查结果以忽略 |
 | `build_page_store` | 构建/重建页面向量索引 |
 | `update_page_store` | 编辑后更新单个页面的向量 |
@@ -140,7 +144,12 @@ your-vault/
 │   ├── log.md               # 操作日志
 │   └── ...
 ├── index.md                 # 内容索引
-└── .source-tracker/         # 自动生成的缓存（页面向量、检查状态）
+└── .source-tracker/         # 自动生成的缓存
+    ├── page_embeddings.json    # 页面向量索引
+    ├── wiki_graph.json         # 知识图谱（节点 + 加权边）
+    ├── graph_changelog.json    # 图增量更新日志
+    ├── skipped_connections.json # 跳过的 Lint 候选对
+    └── last_lint.json          # 最近一次 Lint 时间戳
 ```
 
 页面 frontmatter 应包含 `type`、`status`、`claim_type`、`sources` 等字段。完整规范见 `schema/llm-wiki-schema.md`。
@@ -151,13 +160,16 @@ your-vault/
 server.js
 ├── tools/
 │   ├── search.js      # 三通道搜索
-│   ├── lint.js        # 语义关联检查
+│   ├── lint.js        # 双引擎 Lint（向量 + 图拓扑）
+│   ├── graph.js       # 图拓扑工具（全量构建 + 增量更新）
 │   ├── store.js       # 页面向量存储管理
 │   └── decisions.js   # 决策日志增删改查
 └── lib/
     ├── config.js      # VAULT_ROOT 解析
     ├── embed.js       # Embedding API 客户端 + 余弦相似度
     ├── page-store.js  # 页面向量存储读写搜索
+    ├── graph.js       # 图构建（wikilinks、sources、4-signal 权重）
+    ├── relevance.js   # 动态权重计算（hub 惩罚、稀缺奖励、叠加奖励）
     └── pglite.js      # YOLO PGlite 集成（实时 + 缓存回退）
 ```
 
@@ -196,11 +208,13 @@ Fires Grep keyword matching, page-vector cosine similarity, and YOLO PGlite chun
 
 ![Three-Channel Fusion Search](docs/images/search-flow.svg)
 
-#### 2. Semantic Connection Linting
+#### 2. Dual-Engine Connection Linting (Vector + Graph Topology)
 
-Automatically scans for page pairs that are semantically highly similar but lack Wikilinks, uncovering hidden knowledge connections. Supports false-positive marking to avoid repeated noise.
+Vector lint finds "semantically similar but unlinked" page pairs; graph topology lint finds "structurally missing connections" and "isolated nodes." Both run in parallel, producing four categories: strong confirmation (both engines agree), semantic-only, structural-only, and structural insights. Supports false-positive marking to avoid repeated noise.
 
-![Semantic Connection Linting](docs/images/lint-flow.svg)
+#### 3. Graph Topology Analysis
+
+Builds a knowledge graph using a 4-Signal relevance model (direct links, source overlap, common neighbors via Adamic-Adar, type affinity) with dynamic weighting factors (hub penalty, rarity bonus, reinforcement bonus) to automatically discover truly meaningful connections. Pure file IO, zero API cost.
 
 #### 3. Human-in-the-Loop Decision Workflow
 
@@ -242,7 +256,9 @@ Supports single-page vector incremental updates (`update_page_store`), so editin
 | Tool | Description |
 |------|-------------|
 | `search_wiki` | Three-channel parallel search (grep, page embeddings, PGlite chunks) |
-| `lint_connections` | Find semantically similar pages that aren't linked yet |
+| `lint_full` | Dual-engine lint: vector cosine similarity + graph topology, 4 categories + structural insights |
+| `build_wiki_graph` | Build/rebuild knowledge graph (pure file IO, zero API cost) |
+| `update_wiki_graph` | Incremental graph update after editing (diff analysis + semantic change confirmation) |
 | `mark_skipped_connection` | Mark false-positive lint results to ignore them |
 | `build_page_store` | Build/rebuild the page embedding index |
 | `update_page_store` | Update a single page's embedding after editing |
@@ -320,7 +336,12 @@ your-vault/
 │   ├── log.md               # Operation log
 │   └── ...
 ├── index.md                 # Content index
-└── .source-tracker/         # Auto-generated cache (page embeddings, lint state)
+└── .source-tracker/         # Auto-generated cache
+    ├── page_embeddings.json    # Page vector index
+    ├── wiki_graph.json         # Knowledge graph (nodes + weighted edges)
+    ├── graph_changelog.json    # Graph incremental update log
+    ├── skipped_connections.json # Skipped lint candidates
+    └── last_lint.json          # Last lint timestamp
 ```
 
 Page frontmatter should include `type`, `status`, `claim_type`, `sources`, etc. See `schema/llm-wiki-schema.md` for the full specification.
@@ -331,13 +352,16 @@ Page frontmatter should include `type`, `status`, `claim_type`, `sources`, etc. 
 server.js
 ├── tools/
 │   ├── search.js      # Three-channel search (grep + embeddings + PGlite)
-│   ├── lint.js        # Semantic connection linting
+│   ├── lint.js        # Dual-engine lint (vector + graph topology)
+│   ├── graph.js       # Graph topology tools (full build + incremental update)
 │   ├── store.js       # Page embedding store management
 │   └── decisions.js   # Decision log CRUD
 └── lib/
     ├── config.js      # VAULT_ROOT resolution
     ├── embed.js       # Embedding API client + cosine similarity
     ├── page-store.js  # Page embedding store read/write/search
+    ├── graph.js       # Graph construction (wikilinks, sources, 4-signal weights)
+    ├── relevance.js   # Dynamic weighting (hub penalty, rarity bonus, reinforcement)
     └── pglite.js      # YOLO PGlite integration (live + cache fallback)
 ```
 

@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 300" font-family="'Segoe UI','SF Pro Display',system-ui,sans-serif">
+  <defs>
+    <linearGradient id="gBlue" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#58A6FF"/><stop offset="100%" stop-color="#1F6FEB"/></linearGradient>
+    <linearGradient id="gGreen" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#3FB950"/><stop offset="100%" stop-color="#238636"/></linearGradient>
+    <linearGradient id="gOrange" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#F0883E"/><stop offset="100%" stop-color="#D29922"/></linearGradient>
+    <linearGradient id="gPurple" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#BC8CFF"/><stop offset="100%" stop-color="#8957E5"/></linearGradient>
+    <linearGradient id="gCyan" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#39D2C0"/><stop offset="100%" stop-color="#1B9E8F"/></linearGradient>
+    <filter id="shadow"><feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="#000" flood-opacity="0.4"/></filter>
+    <marker id="arrowB" viewBox="0 0 10 7" refX="10" refY="3.5" markerWidth="8" markerHeight="6" orient="auto"><path d="M0,0 L10,3.5 L0,7z" fill="#58A6FF"/></marker>
+    <marker id="arrowG" viewBox="0 0 10 7" refX="10" refY="3.5" markerWidth="8" markerHeight="6" orient="auto"><path d="M0,0 L10,3.5 L0,7z" fill="#3FB950"/></marker>
+    <marker id="arrowO" viewBox="0 0 10 7" refX="10" refY="3.5" markerWidth="8" markerHeight="6" orient="auto"><path d="M0,0 L10,3.5 L0,7z" fill="#F0883E"/></marker>
+    <marker id="arrowP" viewBox="0 0 10 7" refX="10" refY="3.5" markerWidth="8" markerHeight="6" orient="auto"><path d="M0,0 L10,3.5 L0,7z" fill="#BC8CFF"/></marker>
+  </defs>
+  <rect width="760" height="300" rx="12" fill="#0D1117"/>
+
+  <!-- Start dot -->
+  <circle cx="40" cy="120" r="8" fill="#484F58"/>
+  <line x1="48" y1="120" x2="78" y2="120" stroke="#58A6FF" stroke-width="2" marker-end="url(#arrowB)"/>
+
+  <!-- State: Pending -->
+  <rect x="82" y="85" width="160" height="70" rx="14" fill="#161B22" stroke="#58A6FF" stroke-width="2" filter="url(#shadow)"/>
+  <text x="162" y="108" text-anchor="middle" fill="#58A6FF" font-size="18">📋</text>
+  <text x="162" y="128" text-anchor="middle" fill="#E6EDF3" font-size="13" font-weight="700">待决 Pending</text>
+  <text x="162" y="145" text-anchor="middle" fill="#8B949E" font-size="10">wiki/decisions.md</text>
+
+  <!-- Transition: Pending → Resolved -->
+  <path d="M242,120 C280,120 280,120 318,120" fill="none" stroke="#3FB950" stroke-width="2" marker-end="url(#arrowG)"/>
+  <rect x="255" y="96" width="90" height="20" rx="4" fill="#0D1117"/>
+  <text x="300" y="110" text-anchor="middle" fill="#3FB950" font-size="9" font-weight="600">用户选择选项</text>
+  <text x="300" y="80" text-anchor="middle" fill="#8B949E" font-size="9">[ ] → [x] 或对话</text>
+
+  <!-- State: Resolved -->
+  <rect x="322" y="85" width="160" height="70" rx="14" fill="#161B22" stroke="#3FB950" stroke-width="2" filter="url(#shadow)"/>
+  <text x="402" y="108" text-anchor="middle" fill="#3FB950" font-size="18">✅</text>
+  <text x="402" y="128" text-anchor="middle" fill="#E6EDF3" font-size="13" font-weight="700">已决 Resolved</text>
+  <text x="402" y="145" text-anchor="middle" fill="#8B949E" font-size="10">归档至已决区</text>
+
+  <!-- Transition: Resolved → Correcting (loop back) -->
+  <path d="M402,155 C402,200 580,200 580,155" fill="none" stroke="#F0883E" stroke-width="2" marker-end="url(#arrowO)"/>
+  <text x="490" y="195" text-anchor="middle" fill="#F0883E" font-size="9" font-weight="600">用户改变主意</text>
+
+  <!-- State: Correcting -->
+  <rect x="502" y="85" width="160" height="70" rx="14" fill="#161B22" stroke="#F0883E" stroke-width="2" filter="url(#shadow)"/>
+  <text x="582" y="108" text-anchor="middle" fill="#F0883E" font-size="18">🔄</text>
+  <text x="582" y="128" text-anchor="middle" fill="#E6EDF3" font-size="13" font-weight="700">修正中</text>
+  <text x="582" y="145" text-anchor="middle" fill="#8B949E" font-size="10">correct_decision</text>
+
+  <!-- Transition: Correcting → Resolved -->
+  <path d="M502,103 C465,75 435,75 395,85" fill="none" stroke="#3FB950" stroke-width="2" marker-end="url(#arrowG)" stroke-dasharray="5,3"/>
+  <text x="448" y="72" text-anchor="middle" fill="#3FB950" font-size="9" font-weight="600">选择新方案</text>
+
+  <!-- End dot -->
+  <line x1="482" y1="120" x2="510" y2="120" stroke="#3FB950" stroke-width="2" marker-end="url(#arrowG)" transform="translate(0,0)" style="display:none"/>
+
+  <!-- Resolved → End -->
+  <path d="M482,120 L510,120" stroke="none"/>
+
+  <!-- Decision card examples at bottom -->
+  <rect x="30" y="225" width="220" height="55" rx="8" fill="#161B22" stroke="#30363D" stroke-width="1"/>
+  <text x="42" y="244" fill="#58A6FF" font-size="10" font-weight="600">DEC-042 | 2026-05-03</text>
+  <text x="42" y="260" fill="#8B949E" font-size="9">情境: 新旧资料说法冲突...</text>
+  <text x="42" y="273" fill="#484F58" font-size="9">☐ A. 采纳新资料  ☐ B. 保留旧资料</text>
+
+  <rect x="270" y="225" width="220" height="55" rx="8" fill="#161B22" stroke="#30363D" stroke-width="1"/>
+  <text x="282" y="244" fill="#3FB950" font-size="10" font-weight="600">DEC-042 | ✅ 2026-05-03</text>
+  <text x="282" y="260" fill="#8B949E" font-size="9">☑ A. 采纳新资料</text>
+  <text x="282" y="273" fill="#484F58" font-size="9">已归档至 resolved 区</text>
+
+  <rect x="510" y="225" width="220" height="55" rx="8" fill="#161B22" stroke="#30363D" stroke-width="1"/>
+  <text x="522" y="244" fill="#F0883E" font-size="10" font-weight="600">DEC-042 | 🔄 修正中</text>
+  <text x="522" y="260" fill="#8B949E" font-size="9">原决定: 采纳新资料</text>
+  <text x="522" y="273" fill="#484F58" font-size="9">修正原因: 新发现来源更可靠</text>
+
+  <!-- Bottom label -->
+  <text x="380" y="298" text-anchor="middle" fill="#484F58" font-size="10">LLM 不自行判断 → 结构化决策条目 → 用户掌控 → 全程可追溯</text>
+</svg>

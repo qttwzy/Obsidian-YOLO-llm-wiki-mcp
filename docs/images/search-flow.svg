@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 280" font-family="'Segoe UI','SF Pro Display',system-ui,sans-serif">
+  <defs>
+    <linearGradient id="gBlue" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#58A6FF"/><stop offset="100%" stop-color="#1F6FEB"/></linearGradient>
+    <linearGradient id="gGreen" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#3FB950"/><stop offset="100%" stop-color="#238636"/></linearGradient>
+    <linearGradient id="gPurple" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#BC8CFF"/><stop offset="100%" stop-color="#8957E5"/></linearGradient>
+    <linearGradient id="gOrange" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#F0883E"/><stop offset="100%" stop-color="#D29922"/></linearGradient>
+    <linearGradient id="gCyan" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#39D2C0"/><stop offset="100%" stop-color="#1B9E8F"/></linearGradient>
+    <linearGradient id="gRed" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#F85149"/><stop offset="100%" stop-color="#DA3633"/></linearGradient>
+    <filter id="shadow"><feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="#000" flood-opacity="0.4"/></filter>
+    <marker id="arrowB" viewBox="0 0 10 7" refX="10" refY="3.5" markerWidth="8" markerHeight="6" orient="auto"><path d="M0,0 L10,3.5 L0,7z" fill="#58A6FF"/></marker>
+    <marker id="arrowG" viewBox="0 0 10 7" refX="10" refY="3.5" markerWidth="8" markerHeight="6" orient="auto"><path d="M0,0 L10,3.5 L0,7z" fill="#3FB950"/></marker>
+    <marker id="arrowP" viewBox="0 0 10 7" refX="10" refY="3.5" markerWidth="8" markerHeight="6" orient="auto"><path d="M0,0 L10,3.5 L0,7z" fill="#BC8CFF"/></marker>
+    <marker id="arrowO" viewBox="0 0 10 7" refX="10" refY="3.5" markerWidth="8" markerHeight="6" orient="auto"><path d="M0,0 L10,3.5 L0,7z" fill="#F0883E"/></marker>
+    <marker id="arrowC" viewBox="0 0 10 7" refX="10" refY="3.5" markerWidth="8" markerHeight="6" orient="auto"><path d="M0,0 L10,3.5 L0,7z" fill="#39D2C0"/></marker>
+  </defs>
+  <rect width="820" height="280" rx="12" fill="#0D1117"/>
+
+  <!-- Query node -->
+  <rect x="20" y="100" width="100" height="60" rx="10" fill="url(#gBlue)" filter="url(#shadow)"/>
+  <text x="70" y="125" text-anchor="middle" fill="#fff" font-size="11" font-weight="600">🔍 用户查询</text>
+  <text x="70" y="143" text-anchor="middle" fill="rgba(255,255,255,0.7)" font-size="10">search_wiki</text>
+
+  <!-- Arrows from query -->
+  <line x1="120" y1="118" x2="175" y2="52" stroke="#58A6FF" stroke-width="2" marker-end="url(#arrowB)"/>
+  <line x1="120" y1="130" x2="175" y2="130" stroke="#3FB950" stroke-width="2" marker-end="url(#arrowG)"/>
+  <line x1="120" y1="148" x2="175" y2="218" stroke="#BC8CFF" stroke-width="2" marker-end="url(#arrowP)"/>
+
+  <!-- Channel 1: Grep -->
+  <rect x="180" y="24" width="150" height="56" rx="10" fill="#161B22" stroke="#3FB950" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="255" y="46" text-anchor="middle" fill="#3FB950" font-size="11" font-weight="700">📝 Grep 关键词</text>
+  <text x="255" y="64" text-anchor="middle" fill="#8B949E" font-size="10">grep -rlE · 零成本</text>
+
+  <!-- Channel 2: Page Embeddings -->
+  <rect x="180" y="102" width="150" height="56" rx="10" fill="#161B22" stroke="#58A6FF" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="255" y="124" text-anchor="middle" fill="#58A6FF" font-size="11" font-weight="700">📐 页面向量</text>
+  <text x="255" y="142" text-anchor="middle" fill="#8B949E" font-size="10">余弦相似度搜索</text>
+
+  <!-- Channel 3: PGlite -->
+  <rect x="180" y="180" width="150" height="56" rx="10" fill="#161B22" stroke="#BC8CFF" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="255" y="202" text-anchor="middle" fill="#BC8CFF" font-size="11" font-weight="700">🧩 PGlite 分块</text>
+  <text x="255" y="220" text-anchor="middle" fill="#8B949E" font-size="10">YOLO 向量数据库</text>
+
+  <!-- Arrows to merge -->
+  <line x1="330" y1="52" x2="408" y2="118" stroke="#3FB950" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arrowG)"/>
+  <line x1="330" y1="130" x2="408" y2="130" stroke="#58A6FF" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arrowB)"/>
+  <line x1="330" y1="208" x2="408" y2="148" stroke="#BC8CFF" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arrowP)"/>
+
+  <!-- Merge node -->
+  <rect x="412" y="95" width="130" height="70" rx="10" fill="url(#gOrange)" filter="url(#shadow)"/>
+  <text x="477" y="122" text-anchor="middle" fill="#fff" font-size="11" font-weight="700">🔀 合并去重</text>
+  <text x="477" y="140" text-anchor="middle" fill="rgba(255,255,255,0.7)" font-size="10">按相关性排序</text>
+
+  <!-- Arrow to result -->
+  <line x1="542" y1="130" x2="598" y2="130" stroke="#39D2C0" stroke-width="2" marker-end="url(#arrowC)"/>
+
+  <!-- Result node -->
+  <rect x="602" y="95" width="190" height="70" rx="10" fill="#161B22" stroke="#39D2C0" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="697" y="122" text-anchor="middle" fill="#39D2C0" font-size="12" font-weight="700">📊 Top 8 结果</text>
+  <text x="697" y="140" text-anchor="middle" fill="#8B949E" font-size="10">path · title · score · preview</text>
+
+  <!-- Bottom label -->
+  <text x="410" y="265" text-anchor="middle" fill="#484F58" font-size="10">三路并行 → 语义通道优先 → Grep 补充覆盖</text>
+</svg>

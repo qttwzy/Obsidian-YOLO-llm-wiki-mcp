@@ -29,7 +29,7 @@ function safeHandler(fn) {
 }
 
 const server = new Server(
-  { name: "llm-wiki-mcp", version: "1.1.0" },
+  { name: "Obsidian-YOLO-llm-wiki-mcp", version: "1.1.0" },
   { capabilities: { tools: {} } }
 );
 

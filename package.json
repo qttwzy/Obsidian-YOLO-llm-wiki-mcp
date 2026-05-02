@@ -1,11 +1,11 @@
 {
-  "name": "llm-wiki-mcp",
+  "name": "Obsidian-YOLO-llm-wiki-mcp",
   "version": "1.1.0",
   "description": "MCP server for LLM-Wiki knowledge base management — search, semantic linting, and decision workflows",
   "type": "commonjs",
   "main": "server.js",
   "bin": {
-    "llm-wiki-mcp": "server.js"
+    "Obsidian-YOLO-llm-wiki-mcp": "server.js"
   },
   "scripts": {
     "start": "node server.js"

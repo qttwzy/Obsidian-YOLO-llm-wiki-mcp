@@ -1,0 +1,89 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 280" font-family="'Segoe UI','SF Pro Display',system-ui,sans-serif">
+  <defs>
+    <linearGradient id="gBlue" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#58A6FF"/><stop offset="100%" stop-color="#1F6FEB"/></linearGradient>
+    <linearGradient id="gGreen" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#3FB950"/><stop offset="100%" stop-color="#238636"/></linearGradient>
+    <linearGradient id="gPurple" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#BC8CFF"/><stop offset="100%" stop-color="#8957E5"/></linearGradient>
+    <linearGradient id="gOrange" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#F0883E"/><stop offset="100%" stop-color="#D29922"/></linearGradient>
+    <linearGradient id="gCyan" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#39D2C0"/><stop offset="100%" stop-color="#1B9E8F"/></linearGradient>
+    <linearGradient id="gRed" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#F85149"/><stop offset="100%" stop-color="#DA3633"/></linearGradient>
+    <filter id="shadow"><feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="#000" flood-opacity="0.4"/></filter>
+    <marker id="arrowW" viewBox="0 0 10 7" refX="10" refY="3.5" markerWidth="8" markerHeight="6" orient="auto"><path d="M0,0 L10,3.5 L0,7z" fill="#8B949E"/></marker>
+    <marker id="arrowG" viewBox="0 0 10 7" refX="10" refY="3.5" markerWidth="8" markerHeight="6" orient="auto"><path d="M0,0 L10,3.5 L0,7z" fill="#3FB950"/></marker>
+    <marker id="arrowR" viewBox="0 0 10 7" refX="10" refY="3.5" markerWidth="8" markerHeight="6" orient="auto"><path d="M0,0 L10,3.5 L0,7z" fill="#F85149"/></marker>
+    <marker id="arrowO" viewBox="0 0 10 7" refX="10" refY="3.5" markerWidth="8" markerHeight="6" orient="auto"><path d="M0,0 L10,3.5 L0,7z" fill="#F0883E"/></marker>
+    <marker id="arrowC" viewBox="0 0 10 7" refX="10" refY="3.5" markerWidth="8" markerHeight="6" orient="auto"><path d="M0,0 L10,3.5 L0,7z" fill="#39D2C0"/></marker>
+    <marker id="arrowP" viewBox="0 0 10 7" refX="10" refY="3.5" markerWidth="8" markerHeight="6" orient="auto"><path d="M0,0 L10,3.5 L0,7z" fill="#BC8CFF"/></marker>
+  </defs>
+  <rect width="720" height="280" rx="12" fill="#0D1117"/>
+
+  <!-- Title area -->
+  <text x="360" y="28" text-anchor="middle" fill="#E6EDF3" font-size="12" font-weight="600">YOLO PGlite 双策略查询</text>
+
+  <!-- Query vector input -->
+  <rect x="16" y="100" width="110" height="56" rx="10" fill="url(#gBlue)" filter="url(#shadow)"/>
+  <text x="71" y="122" text-anchor="middle" fill="#fff" font-size="11" font-weight="600">🔍 查询向量</text>
+  <text x="71" y="140" text-anchor="middle" fill="rgba(255,255,255,0.7)" font-size="10">queryVec</text>
+
+  <line x1="126" y1="128" x2="164" y2="128" stroke="#8B949E" stroke-width="2" marker-end="url(#arrowW)"/>
+
+  <!-- Decision: Obsidian running? -->
+  <polygon points="210,88 264,128 210,168 156,128" fill="#161B22" stroke="#F0883E" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="210" y="124" text-anchor="middle" fill="#F0883E" font-size="10" font-weight="600">Obsidian</text>
+  <text x="210" y="137" text-anchor="middle" fill="#F0883E" font-size="10" font-weight="600">运行中?</text>
+
+  <!-- Yes path → live -->
+  <line x1="264" y1="128" x2="300" y2="128" stroke="#3FB950" stroke-width="2" marker-end="url(#arrowG)"/>
+  <text x="282" y="120" fill="#3FB950" font-size="9" font-weight="600">是</text>
+
+  <!-- Live query node -->
+  <rect x="304" y="90" width="150" height="76" rx="10" fill="#161B22" stroke="#BC8CFF" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="379" y="112" text-anchor="middle" fill="#BC8CFF" font-size="11" font-weight="700">⚡ obsidian eval</text>
+  <text x="379" y="128" text-anchor="middle" fill="#8B949E" font-size="9">实时查询 YOLO</text>
+  <text x="379" y="142" text-anchor="middle" fill="#8B949E" font-size="9">PGlite 向量库</text>
+  <text x="379" y="156" text-anchor="middle" fill="#484F58" font-size="8">timeout: 15s</text>
+
+  <!-- Decision: success? -->
+  <line x1="454" y1="128" x2="490" y2="128" stroke="#8B949E" stroke-width="2" marker-end="url(#arrowW)"/>
+  <polygon points="530,100 570,128 530,156 490,128" fill="#161B22" stroke="#F0883E" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="530" y="132" text-anchor="middle" fill="#F0883E" font-size="10" font-weight="600">成功?</text>
+
+  <!-- Success → result -->
+  <line x1="570" y1="128" x2="606" y2="128" stroke="#3FB950" stroke-width="2" marker-end="url(#arrowG)"/>
+  <text x="588" y="120" fill="#3FB950" font-size="9" font-weight="600">是</text>
+  <rect x="610" y="100" width="94" height="56" rx="10" fill="url(#gCyan)" filter="url(#shadow)"/>
+  <text x="657" y="122" text-anchor="middle" fill="#fff" font-size="11" font-weight="700">✅ 返回</text>
+  <text x="657" y="140" text-anchor="middle" fill="rgba(255,255,255,0.7)" font-size="9">pglite_live</text>
+
+  <!-- No path (Obsidian not running OR query failed) → cache -->
+  <line x1="210" y1="168" x2="210" y2="210" stroke="#F85149" stroke-width="1.5" marker-end="url(#arrowR)"/>
+  <text x="220" y="190" fill="#F85149" font-size="9">否</text>
+
+  <!-- Failed also goes to cache -->
+  <path d="M530,156 C530,210 380,210 380,210" fill="none" stroke="#F85149" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arrowR)"/>
+  <text x="470" y="205" fill="#F85149" font-size="9">失败</text>
+
+  <!-- Cache node -->
+  <rect x="100" y="200" width="150" height="56" rx="10" fill="#161B22" stroke="#3FB950" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="175" y="222" text-anchor="middle" fill="#3FB950" font-size="11" font-weight="700">💾 本地缓存</text>
+  <text x="175" y="240" text-anchor="middle" fill="#8B949E" font-size="9">PGlite 数据库</text>
+
+  <!-- Cache decision -->
+  <line x1="250" y1="228" x2="290" y2="228" stroke="#8B949E" stroke-width="2" marker-end="url(#arrowW)"/>
+  <polygon points="330,206 366,228 330,250 294,228" fill="#161B22" stroke="#F0883E" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="330" y="232" text-anchor="middle" fill="#F0883E" font-size="10" font-weight="600">存在?</text>
+
+  <!-- Cache hit → result -->
+  <line x1="366" y1="228" x2="420" y2="228" stroke="#3FB950" stroke-width="2" marker-end="url(#arrowG)"/>
+  <text x="393" y="220" fill="#3FB950" font-size="9">是</text>
+  <rect x="424" y="200" width="94" height="56" rx="10" fill="url(#gGreen)" filter="url(#shadow)"/>
+  <text x="471" y="222" text-anchor="middle" fill="#fff" font-size="11" font-weight="700">✅ 返回</text>
+  <text x="471" y="240" text-anchor="middle" fill="rgba(255,255,255,0.7)" font-size="9">pglite_cache</text>
+
+  <!-- Cache miss → empty -->
+  <line x1="330" y1="250" x2="330" y2="268" stroke="#F85149" stroke-width="1.5"/>
+  <rect x="260" y="258" width="140" height="18" rx="4" fill="url(#gRed)" filter="url(#shadow)"/>
+  <text x="330" y="271" text-anchor="middle" fill="#fff" font-size="9" font-weight="600">⚠️ unavailable · 返回空</text>
+
+  <!-- Bottom label -->
+  <text x="360" y="278" text-anchor="middle" fill="#484F58" font-size="10">主路径: 实时查询 → 失败回退: 本地缓存 → 兜底: 返回空</text>
+</svg>

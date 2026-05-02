@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 160" font-family="'Segoe UI','SF Pro Display',system-ui,sans-serif">
+  <defs>
+    <linearGradient id="gBlue" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#58A6FF"/><stop offset="100%" stop-color="#1F6FEB"/></linearGradient>
+    <linearGradient id="gPurple" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#BC8CFF"/><stop offset="100%" stop-color="#8957E5"/></linearGradient>
+    <linearGradient id="gCyan" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#39D2C0"/><stop offset="100%" stop-color="#1B9E8F"/></linearGradient>
+    <linearGradient id="gGreen" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#3FB950"/><stop offset="100%" stop-color="#238636"/></linearGradient>
+    <filter id="shadow"><feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="#000" flood-opacity="0.4"/></filter>
+    <marker id="arrowW" viewBox="0 0 10 7" refX="10" refY="3.5" markerWidth="8" markerHeight="6" orient="auto"><path d="M0,0 L10,3.5 L0,7z" fill="#8B949E"/></marker>
+    <marker id="arrowC" viewBox="0 0 10 7" refX="10" refY="3.5" markerWidth="8" markerHeight="6" orient="auto"><path d="M0,0 L10,3.5 L0,7z" fill="#39D2C0"/></marker>
+  </defs>
+  <rect width="600" height="160" rx="12" fill="#0D1117"/>
+
+  <!-- Step 1: Edit -->
+  <rect x="16" y="45" width="110" height="56" rx="10" fill="url(#gBlue)" filter="url(#shadow)"/>
+  <text x="71" y="67" text-anchor="middle" fill="#fff" font-size="11" font-weight="600">✏️ 编辑页面</text>
+  <text x="71" y="85" text-anchor="middle" fill="rgba(255,255,255,0.7)" font-size="10">修改 wiki/*.md</text>
+
+  <line x1="126" y1="73" x2="154" y2="73" stroke="#8B949E" stroke-width="2" marker-end="url(#arrowW)"/>
+
+  <!-- Step 2: Update tool -->
+  <rect x="158" y="45" width="130" height="56" rx="10" fill="#161B22" stroke="#BC8CFF" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="223" y="67" text-anchor="middle" fill="#BC8CFF" font-size="11" font-weight="700">update_page_store</text>
+  <text x="223" y="85" text-anchor="middle" fill="#8B949E" font-size="10">MCP 工具调用</text>
+
+  <line x1="288" y1="73" x2="316" y2="73" stroke="#8B949E" stroke-width="2" marker-end="url(#arrowW)"/>
+
+  <!-- Step 3: Re-embed -->
+  <rect x="320" y="45" width="110" height="56" rx="10" fill="#161B22" stroke="#58A6FF" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="375" y="67" text-anchor="middle" fill="#58A6FF" font-size="11" font-weight="600">🧠 重新 Embed</text>
+  <text x="375" y="85" text-anchor="middle" fill="#8B949E" font-size="10">单页 → 向量</text>
+
+  <line x1="430" y1="73" x2="458" y2="73" stroke="#8B949E" stroke-width="2" marker-end="url(#arrowW)"/>
+
+  <!-- Step 4: Update store -->
+  <rect x="462" y="45" width="122" height="56" rx="10" fill="url(#gCyan)" filter="url(#shadow)"/>
+  <text x="523" y="67" text-anchor="middle" fill="#fff" font-size="11" font-weight="700">📊 更新索引</text>
+  <text x="523" y="85" text-anchor="middle" fill="rgba(255,255,255,0.7)" font-size="10">page_embeddings.json</text>
+
+  <!-- Comparison bar -->
+  <rect x="16" y="120" width="270" height="24" rx="6" fill="#21262D" stroke="#30363D" stroke-width="1"/>
+  <text x="151" y="136" text-anchor="middle" fill="#F85149" font-size="10" font-weight="600">全量重建: 所有页面重新 Embed (慢)</text>
+
+  <rect x="310" y="120" width="274" height="24" rx="6" fill="#161B22" stroke="#3FB950" stroke-width="1.5"/>
+  <text x="447" y="136" text-anchor="middle" fill="#3FB950" font-size="10" font-weight="600">增量更新: 仅单页 Embed (快 ⚡)</text>
+</svg>

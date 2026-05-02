@@ -1,0 +1,37 @@
+{
+  "name": "llm-wiki-mcp",
+  "version": "1.1.0",
+  "description": "MCP server for LLM-Wiki knowledge base management — search, semantic linting, and decision workflows",
+  "type": "commonjs",
+  "main": "server.js",
+  "bin": {
+    "llm-wiki-mcp": "server.js"
+  },
+  "scripts": {
+    "start": "node server.js"
+  },
+  "keywords": [
+    "mcp",
+    "llm",
+    "wiki",
+    "knowledge-base",
+    "obsidian",
+    "embeddings",
+    "semantic-search"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "files": [
+    "server.js",
+    "lib/",
+    "tools/",
+    "README.md",
+    "LICENSE"
+  ],
+  "dependencies": {
+    "@electric-sql/pglite": "^0.2.0",
+    "@modelcontextprotocol/sdk": "^1.0.0"
+  }
+}

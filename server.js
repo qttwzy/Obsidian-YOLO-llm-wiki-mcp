@@ -9,9 +9,10 @@ const {
 } = require("@modelcontextprotocol/sdk/types.js");
 
 const { searchWiki } = require("./tools/search");
-const { lintConnections, markSkipped, updateLintTimestamp } = require("./tools/lint");
+const { markSkipped, updateLintTimestamp, lintFull } = require("./tools/lint");
 const { handleBuildStore, handleUpdateStore } = require("./tools/store");
 const { listDecisions, createDecision, resolveDecision, correctDecision } = require("./tools/decisions");
+const { handleBuildGraph, handleUpdateGraph } = require("./tools/graph");
 const { validateConfig } = require("./lib/embed");
 
 function formatError(message) {
@@ -47,14 +48,32 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       },
     },
     {
-      name: "lint_connections",
-      description: "Find candidate page pairs with high semantic similarity but no existing wikilinks. Results should be reviewed by LLM to determine if connections are meaningful.",
+      name: "lint_full",
+      description: "Run dual-engine lint: vector cosine similarity + graph topology analysis. Returns categorized candidate pairs (cross_signal, semantic_only, structural_only) and structural insights (isolated nodes, bridge nodes).",
       inputSchema: {
         type: "object",
         properties: {
-          top: { type: "number", description: "Max candidate pairs to return (default: 30)" },
-          minScore: { type: "number", description: "Minimum cosine similarity threshold (default: 0.5)" },
+          top: { type: "number", description: "Max candidates per category (default: 15)" },
+          minVectorScore: { type: "number", description: "Minimum cosine similarity threshold (default: 0.5)" },
+          minGraphScore: { type: "number", description: "Minimum graph edge weight threshold (default: 1.0)" },
         },
+      },
+    },
+    {
+      name: "build_wiki_graph",
+      description: "Build or rebuild the wiki graph topology. Scans all wiki pages, extracts wikilinks and sources, calculates 4-signal edge weights with dynamic factors. Pure file IO, no API needed.",
+      inputSchema: { type: "object", properties: {} },
+    },
+    {
+      name: "update_wiki_graph",
+      description: "Incrementally update the wiki graph after editing a page. Computes structural diff first. If semanticChange is omitted, returns the diff and asks whether the edit changed semantics.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          filePath: { type: "string", description: "Path relative to vault root (e.g. 'wiki/entities/Claude Code.md')" },
+          semanticChange: { type: "boolean", description: "Whether the edit changed the page's meaning. If omitted, returns diff and asks." },
+        },
+        required: ["filePath"],
       },
     },
     {
@@ -175,10 +194,27 @@ server.setRequestHandler(CallToolRequestSchema, safeHandler(async (request) => {
       return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
     }
 
-    case "lint_connections": {
-      const result = lintConnections({
-        top: args.top || 30,
-        minScore: args.minScore || 0.5,
+    case "build_wiki_graph": {
+      const result = handleBuildGraph();
+      return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+    }
+
+    case "update_wiki_graph": {
+      if (!args.filePath) {
+        return formatError("update_wiki_graph requires a filePath");
+      }
+      const result = handleUpdateGraph({
+        filePath: args.filePath,
+        semanticChange: args.semanticChange,
+      });
+      return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+    }
+
+    case "lint_full": {
+      const result = lintFull({
+        top: args.top,
+        minVectorScore: args.minVectorScore,
+        minGraphScore: args.minGraphScore,
       });
       return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
     }

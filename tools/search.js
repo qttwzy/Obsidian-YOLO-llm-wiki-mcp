@@ -45,8 +45,8 @@ async function pageSearch(queryVec) {
 /**
  * Channel 3: YOLO PGlite pgvector chunk search.
  */
-async function chunkSearch(queryVec) {
-  const { source, rows } = await queryWikiChunks(queryVec, 20);
+async function chunkSearch(queryVec, vault) {
+  const { source, rows } = await queryWikiChunks(queryVec, 20, vault);
   return rows.map((r) => ({ ...r, source }));
 }
 
@@ -98,7 +98,7 @@ function mergeResults(grepResults, pageResults, chunkResults, storeEntries) {
 /**
  * Main search entry point.
  */
-async function searchWiki(query) {
+async function searchWiki(query, vault) {
   if (!query || query.trim().length === 0) {
     return { results: [], source: "none" };
   }
@@ -111,7 +111,7 @@ async function searchWiki(query) {
   const [grepResults, pageResults, chunkResults] = await Promise.all([
     Promise.resolve(grepWiki(query)),
     pageSearch(queryVec),
-    chunkSearch(queryVec),
+    chunkSearch(queryVec, vault),
   ]);
 
   const store = loadStore();

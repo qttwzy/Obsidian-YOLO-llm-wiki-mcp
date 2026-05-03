@@ -44,6 +44,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         type: "object",
         properties: {
           query: { type: "string", description: "Search query in natural language" },
+          vault: { type: "string", description: "Vault name (defaults to VAULT_ROOT basename)" },
         },
         required: ["query"],
       },
@@ -227,7 +228,7 @@ server.setRequestHandler(CallToolRequestSchema, safeHandler(async (request) => {
       if (!query.trim()) {
         return formatError("search_wiki requires a non-empty query string");
       }
-      const result = await searchWiki(query);
+      const result = await searchWiki(query, args.vault);
       return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
     }
 

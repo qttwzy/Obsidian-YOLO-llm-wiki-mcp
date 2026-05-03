@@ -13,6 +13,7 @@ const { markSkipped, updateLintTimestamp, lintFull } = require("./tools/lint");
 const { handleBuildStore, handleUpdateStore } = require("./tools/store");
 const { listDecisions, createDecision, resolveDecision, correctDecision } = require("./tools/decisions");
 const { handleBuildGraph, handleUpdateGraph } = require("./tools/graph");
+const { handleUpdateEmbedding, handleDeleteEmbedding, handleQueryStatus } = require("./tools/yolo-crud");
 const { validateConfig } = require("./lib/embed");
 
 function formatError(message) {
@@ -178,6 +179,42 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         required: ["filePath"],
       },
     },
+    {
+      name: "update_pglite_embedding",
+      description: "Create or update an embedding record in YOLO's PGlite database. Use after editing a wiki page.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          vault: { type: "string", description: "Vault name (defaults to VAULT_ROOT basename)" },
+          path: { type: "string", description: "Page relative path (e.g., 'wiki/entities/Foo.md')" },
+          content: { type: "string", description: "Page content to embed" },
+          metadata: { type: "object", description: "Additional metadata (optional)" },
+        },
+        required: ["path", "content"],
+      },
+    },
+    {
+      name: "delete_pglite_embedding",
+      description: "Delete embedding records for a page from YOLO's PGlite database.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          vault: { type: "string", description: "Vault name (defaults to VAULT_ROOT basename)" },
+          path: { type: "string", description: "Page relative path" },
+        },
+        required: ["path"],
+      },
+    },
+    {
+      name: "query_pglite_status",
+      description: "Query YOLO PGlite database status and statistics.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          vault: { type: "string", description: "Vault name (defaults to VAULT_ROOT basename)" },
+        },
+      },
+    },
   ],
 }));
 
@@ -240,6 +277,27 @@ server.setRequestHandler(CallToolRequestSchema, safeHandler(async (request) => {
       }
       const result = await handleUpdateStore({ filePath: args.filePath });
       return { content: [{ type: "text", text: JSON.stringify(result) }] };
+    }
+
+    case "update_pglite_embedding": {
+      if (!args.path || !args.content) {
+        return formatError("update_pglite_embedding requires path and content");
+      }
+      const result = await handleUpdateEmbedding(args);
+      return { content: [{ type: "text", text: JSON.stringify(result) }] };
+    }
+
+    case "delete_pglite_embedding": {
+      if (!args.path) {
+        return formatError("delete_pglite_embedding requires path");
+      }
+      const result = await handleDeleteEmbedding(args);
+      return { content: [{ type: "text", text: JSON.stringify(result) }] };
+    }
+
+    case "query_pglite_status": {
+      const result = handleQueryStatus(args);
+      return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
     }
 
     case "list_decisions": {

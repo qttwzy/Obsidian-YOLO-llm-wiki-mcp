@@ -21,7 +21,9 @@ server.js              # MCP server entry point (stdio transport)
     ├── search.js      # Three-channel search (grep + page embeddings + PGlite chunks)
     ├── lint.js        # Find semantically similar pages without wikilinks
     ├── store.js       # Page embedding store build/update handlers
-    └── decisions.js   # Decision log CRUD (create/resolve/correct)
+    ├── decisions.js   # Decision log CRUD (create/resolve/correct)
+    ├── graph.js       # Wiki graph topology tools
+    └── yolo-crud.js   # YOLO PGlite CRUD operations (update/delete/status)
 ```
 
 ## Key Design Decisions
@@ -54,3 +56,25 @@ server.js              # MCP server entry point (stdio transport)
 | `EMBED_API_URL` | Yes | — |
 | `EMBED_API_KEY` | Yes | — |
 | `EMBED_MODEL` | No | `Qwen/Qwen3-Embedding-8B` |
+
+## Multi-Vault Support
+
+All tools that interact with YOLO PGlite accept an optional `vault` parameter:
+- When omitted, uses `VAULT_ROOT` basename (e.g., "AI")
+- Use `vault="OtherVault"` to target a specific vault
+- Requires Obsidian to be running with the target vault open
+
+## YOLO PGlite CRUD Operations
+
+The MCP server provides full CRUD operations for YOLO's PGlite embeddings database:
+
+| Tool | Description | Parameters |
+|------|-------------|------------|
+| `update_pglite_embedding` | Create/update embedding | `path`, `content`, `vault?` |
+| `delete_pglite_embedding` | Delete embedding | `path`, `vault?` |
+| `query_pglite_status` | Query PGlite status | `vault?` |
+
+Safety mechanisms:
+- Checks YOLO indexing status before write operations
+- Tags metadata with `source: "mcp"` for audit trail
+- Coordinates delete+insert to prevent duplicate records

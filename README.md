@@ -16,11 +16,7 @@
 
 ![三通道融合搜索](docs/images/search-flow.svg)
 
-#### 2. 双引擎关联巡检（向量 + 图拓扑）
-
-向量 Lint 发现"语义相似但未链接"的页面对，图拓扑 Lint 发现"结构上缺失连接"和"孤立节点"。两者并行运行，输出四类结果：强确认（双引擎一致）、语义补链、结构检查、结构洞见。支持误报标记，避免重复干扰。
-
-#### 3. 图拓扑分析
+#### 2. 图拓扑分析
 
 基于 4-Signal 相关性模型（直接链接、源文件重叠、共同邻居 Adamic-Adar、类型亲和度）构建知识图谱，使用动态权重因子（热门节点惩罚、稀缺链接奖励、多信号叠加奖励）自动发现真正有价值的连接。纯文件 IO，零 API 成本。
 
@@ -190,6 +186,11 @@ server.js
 3. `resolve_decision` — 将条目从待处理移至已解决
 4. `correct_decision` — 如果用户改变主意，添加修正块
 
+### 致谢
+
+- [Karpathy's llm-wiki.md](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f) — 本项目遵循的 LLM-Wiki 设计模式
+- [nashsu/llm_wiki](https://github.com/nashsu/llm_wiki) — 同样基于 Karpathy 模式的桌面应用实现（Tauri + React），其 4-Signal 相关性模型和知识图谱设计对本项目有启发
+
 ### 许可证
 
 MIT
@@ -208,11 +209,7 @@ Fires Grep keyword matching, page-vector cosine similarity, and YOLO PGlite chun
 
 ![Three-Channel Fusion Search](docs/images/search-flow.svg)
 
-#### 2. Dual-Engine Connection Linting (Vector + Graph Topology)
-
-Vector lint finds "semantically similar but unlinked" page pairs; graph topology lint finds "structurally missing connections" and "isolated nodes." Both run in parallel, producing four categories: strong confirmation (both engines agree), semantic-only, structural-only, and structural insights. Supports false-positive marking to avoid repeated noise.
-
-#### 3. Graph Topology Analysis
+#### 2. Graph Topology Analysis
 
 Builds a knowledge graph using a 4-Signal relevance model (direct links, source overlap, common neighbors via Adamic-Adar, type affinity) with dynamic weighting factors (hub penalty, rarity bonus, reinforcement bonus) to automatically discover truly meaningful connections. Pure file IO, zero API cost.
 
@@ -381,6 +378,11 @@ When the LLM encounters conflicting or uncertain information during ingestion or
 2. User picks an option in Obsidian (`[ ]` → `[x]`) or via conversation
 3. `resolve_decision` — moves the entry from pending to resolved
 4. `correct_decision` — adds a correction block if the user changes their mind
+
+### Acknowledgments
+
+- [Karpathy's llm-wiki.md](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f) — the LLM-Wiki design pattern this project follows
+- [nashsu/llm_wiki](https://github.com/nashsu/llm_wiki) — a desktop implementation (Tauri + React) of the same Karpathy pattern; its 4-Signal relevance model and knowledge graph design inspired parts of this project
 
 ### License
 

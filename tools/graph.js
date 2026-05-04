@@ -1,63 +1,18 @@
 "use strict";
 
 const fs = require("fs");
-const path = require("path");
-const { VAULT_ROOT } = require("../lib/config");
-const { buildGraph, parseFrontmatter, extractWikilinks, resolveLink, getResolvedOutLinks } = require("../lib/graph");
+const { VAULT_ROOT, assertInsideVault, getWikiDir } = require("../lib/config");
+const { buildGraph, parseFrontmatter, extractWikilinks, resolveLink, getResolvedOutLinks, loadGraph, saveGraph, appendChangelog, clearChangelog } = require("../lib/graph");
 const { calculateEdgeWeight } = require("../lib/relevance");
-
-const GRAPH_PATH = path.join(VAULT_ROOT, ".source-tracker", "wiki_graph.json");
-const CHANGELOG_PATH = path.join(VAULT_ROOT, ".source-tracker", "graph_changelog.json");
-
-/**
- * Load existing graph from disk.
- * @returns {object|null}
- */
-function loadGraph() {
-  if (!fs.existsSync(GRAPH_PATH)) return null;
-  return JSON.parse(fs.readFileSync(GRAPH_PATH, "utf-8"));
-}
-
-/**
- * Save graph to disk.
- */
-function saveGraph(graph) {
-  const dir = path.dirname(GRAPH_PATH);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(GRAPH_PATH, JSON.stringify(graph, null, 2), "utf-8");
-}
-
-/**
- * Append an entry to the changelog.
- */
-function appendChangelog(entry) {
-  const dir = path.dirname(CHANGELOG_PATH);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-
-  let data = { entries: [] };
-  if (fs.existsSync(CHANGELOG_PATH)) {
-    data = JSON.parse(fs.readFileSync(CHANGELOG_PATH, "utf-8"));
-  }
-  data.entries.push({ ...entry, timestamp: new Date().toISOString() });
-  fs.writeFileSync(CHANGELOG_PATH, JSON.stringify(data, null, 2), "utf-8");
-}
-
-/**
- * Clear the changelog file.
- */
-function clearChangelog() {
-  const dir = path.dirname(CHANGELOG_PATH);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(CHANGELOG_PATH, JSON.stringify({ entries: [] }, null, 2), "utf-8");
-}
 
 /**
  * Full graph build. MCP tool handler for build_wiki_graph.
+ * @param {string} [vaultRoot]
  */
-function handleBuildGraph() {
-  const graph = buildGraph();
-  saveGraph(graph);
-  clearChangelog();
+function handleBuildGraph(vaultRoot) {
+  const graph = buildGraph(vaultRoot);
+  saveGraph(graph, vaultRoot);
+  clearChangelog(vaultRoot);
 
   const nodeCount = Object.keys(graph.nodes).length;
   const edgeCount = graph.edges.length;
@@ -75,10 +30,11 @@ function handleBuildGraph() {
  * Compute structural diff between old node state and new file state.
  * @param {object} oldNode - Node from wiki_graph.json
  * @param {string} absPath - Absolute path to the current .md file
+ * @param {string} [wikiDir] - For type inference
  * @returns {object} Structural diff
  */
-function computeStructuralDiff(oldNode, absPath) {
-  const { type, title, sources, body, content } = parseFrontmatter(absPath);
+function computeStructuralDiff(oldNode, absPath, wikiDir) {
+  const { type, title, sources, body, content } = parseFrontmatter(absPath, wikiDir);
   const newLinks = extractWikilinks(content);
 
   const oldOutLinks = new Set(oldNode.outLinks);
@@ -107,15 +63,22 @@ function computeStructuralDiff(oldNode, absPath) {
 
 /**
  * Incremental graph update. MCP tool handler for update_wiki_graph.
- * @param {object} args - { filePath: string, semanticChange?: boolean }
+ * @param {object} args - { filePath: string, semanticChange?: boolean, vaultRoot?: string }
  */
-function handleUpdateGraph({ filePath, semanticChange }) {
-  const graph = loadGraph();
+function handleUpdateGraph({ filePath, semanticChange, vaultRoot }) {
+  const root = vaultRoot || VAULT_ROOT;
+
+  const graph = loadGraph(root);
   if (!graph) {
     return { error: "Graph not built. Run build_wiki_graph first." };
   }
 
-  const absPath = path.join(VAULT_ROOT, filePath);
+  let absPath;
+  try {
+    absPath = assertInsideVault(filePath, root);
+  } catch (e) {
+    return { error: e.message };
+  }
   if (!fs.existsSync(absPath)) {
     return { error: `File not found: ${filePath}` };
   }
@@ -132,7 +95,8 @@ function handleUpdateGraph({ filePath, semanticChange }) {
   }
 
   // Compute structural diff
-  const diff = computeStructuralDiff(oldNode, absPath);
+  const wikiDir = getWikiDir(root);
+  const diff = computeStructuralDiff(oldNode, absPath, wikiDir);
 
   // If semanticChange not provided, return diff and wait
   if (semanticChange === undefined || semanticChange === null) {
@@ -165,7 +129,7 @@ function handleUpdateGraph({ filePath, semanticChange }) {
       status: "no_update",
       reason: "semanticChange is false",
     };
-    appendChangelog({ file: slug, semanticChange: false, changes: diff.outLinks });
+    appendChangelog({ file: slug, semanticChange: false, changes: diff.outLinks }, root);
     return report;
   }
 
@@ -275,7 +239,7 @@ function handleUpdateGraph({ filePath, semanticChange }) {
   }
 
   graph.updated = new Date().toISOString();
-  saveGraph(graph);
+  saveGraph(graph, root);
 
   const report = {
     updated: slug,
@@ -300,7 +264,7 @@ function handleUpdateGraph({ filePath, semanticChange }) {
     changes: { outLinks: diff.outLinks, sources: diff.sources },
     actions,
     affectedNodes: [...affectedNodes],
-  });
+  }, root);
 
   return report;
 }

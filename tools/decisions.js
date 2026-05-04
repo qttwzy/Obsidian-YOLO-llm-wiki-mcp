@@ -4,18 +4,22 @@ const fs = require("fs");
 const path = require("path");
 const { VAULT_ROOT } = require("../lib/config");
 
-const DECISIONS_PATH = path.join(VAULT_ROOT, "wiki", "decisions.md");
+function getDecisionsPath(vaultRoot) {
+  return path.join(vaultRoot || VAULT_ROOT, "wiki", "decisions.md");
+}
 
-function readDecisionsFile() {
-  if (!fs.existsSync(DECISIONS_PATH)) {
+function readDecisionsFile(vaultRoot) {
+  const decisionsPath = getDecisionsPath(vaultRoot);
+  if (!fs.existsSync(decisionsPath)) {
     return { raw: "", pending: [], resolved: [] };
   }
-  const raw = fs.readFileSync(DECISIONS_PATH, "utf-8");
+  const raw = fs.readFileSync(decisionsPath, "utf-8");
   return { raw, ...parseDecisions(raw) };
 }
 
-function writeDecisionsFile(content) {
-  fs.writeFileSync(DECISIONS_PATH, content, "utf-8");
+function writeDecisionsFile(content, vaultRoot) {
+  const decisionsPath = getDecisionsPath(vaultRoot);
+  fs.writeFileSync(decisionsPath, content, "utf-8");
 }
 
 /**
@@ -99,8 +103,8 @@ function parseBlock(block) {
 /**
  * List all decisions, optionally filtered by status.
  */
-function listDecisions({ status } = {}) {
-  const { pending, resolved } = readDecisionsFile();
+function listDecisions({ status, vaultRoot } = {}) {
+  const { pending, resolved } = readDecisionsFile(vaultRoot);
 
   const result = {};
   if (!status || status === "pending") result.pending = pending;
@@ -115,8 +119,8 @@ function listDecisions({ status } = {}) {
 /**
  * Create a new pending decision entry.
  */
-function createDecision({ id, situation, options }) {
-  const { raw, pending } = readDecisionsFile();
+function createDecision({ id, situation, options, vaultRoot }) {
+  const { raw, pending } = readDecisionsFile(vaultRoot);
 
   const existingIds = pending.map((d) => d.id).filter(Boolean);
   if (id && existingIds.includes(id)) {
@@ -144,15 +148,15 @@ function createDecision({ id, situation, options }) {
     newRaw = raw.slice(0, afterHeader) + entry + raw.slice(afterHeader);
   }
 
-  writeDecisionsFile(newRaw);
+  writeDecisionsFile(newRaw, vaultRoot);
   return { status: "created", id: decId };
 }
 
 /**
  * Resolve a decision by checking an option and moving it to resolved.
  */
-function resolveDecision({ id, option, customText }) {
-  const { raw, pending } = readDecisionsFile();
+function resolveDecision({ id, option, customText, vaultRoot }) {
+  const { raw, pending } = readDecisionsFile(vaultRoot);
 
   const dec = pending.find((d) => d.id === id);
   if (!dec) return { error: `Pending decision ${id} not found` };
@@ -200,15 +204,15 @@ function resolveDecision({ id, option, customText }) {
     newRaw = newRaw.slice(0, afterPending) + "\n\n_(当前无待决条目)_\n" + newRaw.slice(afterPending).trimStart();
   }
 
-  writeDecisionsFile(newRaw);
+  writeDecisionsFile(newRaw, vaultRoot);
   return { status: "resolved", id, option: option || "custom", customText };
 }
 
 /**
  * Add a correction block to a resolved decision.
  */
-function correctDecision({ id, originalDecision, correctionReason, options }) {
-  const { raw, resolved } = readDecisionsFile();
+function correctDecision({ id, originalDecision, correctionReason, options, vaultRoot }) {
+  const { raw, resolved } = readDecisionsFile(vaultRoot);
 
   const dec = resolved.find((d) => d.id === id);
   if (!dec) return { error: `Resolved decision ${id} not found` };
@@ -232,7 +236,7 @@ function correctDecision({ id, originalDecision, correctionReason, options }) {
     return { error: "Could not find resolved section" };
   }
 
-  writeDecisionsFile(newRaw);
+  writeDecisionsFile(newRaw, vaultRoot);
   return { status: "correcting", id };
 }
 

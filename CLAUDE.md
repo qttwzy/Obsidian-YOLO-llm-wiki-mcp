@@ -13,24 +13,30 @@ This is a Node.js project — no TypeScript, no build step, no test framework ye
 ```
 server.js              # MCP server entry point (stdio transport)
 ├── lib/
-│   ├── config.js      # VAULT_ROOT resolution (env var or ../../)
+│   ├── config.js      # Vault discovery, resolution, and path validation
 │   ├── embed.js       # OpenAI-compatible embedding API client + cosine similarity
+│   ├── graph.js       # Wiki graph construction + persistence (load/save)
 │   ├── page-store.js  # Page embedding store (read/write/search .source-tracker/page_embeddings.json)
-│   └── pglite.js      # YOLO PGlite integration (live via obsidian eval, fallback to cached tar.gz)
+│   ├── pglite.js      # YOLO PGlite integration (live via obsidian eval, fallback to cached tar.gz)
+│   └── relevance.js   # 4-signal edge weight calculation
 └── tools/
     ├── search.js      # Three-channel search (grep + page embeddings + PGlite chunks)
-    ├── lint.js        # Find semantically similar pages without wikilinks
+    ├── lint.js        # Dual-engine lint (vector similarity + graph topology)
     ├── store.js       # Page embedding store build/update handlers
     ├── decisions.js   # Decision log CRUD (create/resolve/correct)
-    ├── graph.js       # Wiki graph topology tools
+    ├── graph.js       # Wiki graph build/update handlers
     └── yolo-crud.js   # YOLO PGlite CRUD operations (update/delete/status)
 ```
 
 ## Key Design Decisions
 
-- **`VAULT_ROOT` is configurable** via `VAULT_ROOT` env var. Defaults to `../../` (for when mcp/ is inside the vault). All files import from `lib/config.js`.
+- **`VAULT_ROOT` resolution** via `lib/config.js`:
+  1. `VAULT_ROOT` env var (absolute path)
+  2. `findNearestVault(process.cwd())` — walks up from cwd to find `.obsidian/`
+  3. Fallback: two levels up from `lib/config.js` (legacy)
+- **Multi-vault routing**: all tools accept optional `vault` parameter. Resolved via `resolveVaultRoot()` — supports vault name, absolute path, or default.
 - **`server.js` is the only entry point.** It registers all tools and handles MCP stdio transport.
-- **Tools are stateless.** Each tool call reads from disk (decisions.md, page_embeddings.json) and writes back. No in-memory state between calls.
+- **Tools are stateless.** Each tool call reads from disk (decisions.md, page_embeddings.json, wiki_graph.json) and writes back. No in-memory state between calls.
 - **`lib/pglite.js`** has two strategies: live query via `obsidian eval` CLI (requires Obsidian running with YOLO plugin), or cached PGlite database. Both are best-effort and gracefully return empty on failure.
 - **`lib/embed.js`** talks to any OpenAI-compatible `/v1/embeddings` endpoint. No dependency on OpenAI SDK — uses raw `http`/`https` modules.
 
@@ -41,6 +47,9 @@ server.js              # MCP server entry point (stdio transport)
 - No external dependencies beyond `@modelcontextprotocol/sdk` and `@electric-sql/pglite`
 - Error handling: tools return `{ error: "message" }` objects, never throw to the caller
 - Path separators: always normalize to `/` with `.replace(/\\/g, "/")` for cross-platform consistency
+- Security: use `execFileSync` with argument arrays, never `execSync` with shell strings
+- Path validation: use `assertInsideVault(filePath, vaultRoot)` to prevent directory traversal
+- Shared helpers in `lib/config.js`: `getWikiDir()`, `resolveVaultRoot()`, `assertInsideVault()`
 
 ## Adding a New Tool
 
@@ -52,17 +61,24 @@ server.js              # MCP server entry point (stdio transport)
 
 | Variable | Required | Default |
 |----------|----------|---------|
-| `VAULT_ROOT` | No | `path.resolve(__dirname, "..", "..")` |
+| `VAULT_ROOT` | No | `findNearestVault(process.cwd())` |
 | `EMBED_API_URL` | Yes | — |
 | `EMBED_API_KEY` | Yes | — |
 | `EMBED_MODEL` | No | `Qwen/Qwen3-Embedding-8B` |
 
 ## Multi-Vault Support
 
-All tools that interact with YOLO PGlite accept an optional `vault` parameter:
-- When omitted, uses `VAULT_ROOT` basename (e.g., "AI")
-- Use `vault="OtherVault"` to target a specific vault
-- Requires Obsidian to be running with the target vault open
+All tools accept an optional `vault` parameter:
+- When omitted, uses default `VAULT_ROOT` (bound to agent's cwd)
+- Use `vault="VaultName"` to target a specific vault (scanned from parent directory)
+- Use `vault="/absolute/path"` to target by absolute path
+- Vault discovery: scans parent of `VAULT_ROOT` for directories containing `.obsidian/`
+- All responses include `_vault` field indicating which vault was operated on
+
+Vault resolution functions in `lib/config.js`:
+- `resolveVaultRoot(vault)` — returns absolute path
+- `resolveVaultInfo(vault)` — returns `{ vaultRoot, vaultName }`
+- `assertInsideVault(filePath, vaultRoot)` — validates path stays within vault
 
 ## YOLO PGlite CRUD Operations
 

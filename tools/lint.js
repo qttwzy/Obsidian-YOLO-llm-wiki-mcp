@@ -2,22 +2,29 @@
 
 const fs = require("fs");
 const path = require("path");
-const { loadStore, saveStore } = require("../lib/page-store");
+const { loadStore } = require("../lib/page-store");
 const { cosineSimilarity } = require("../lib/embed");
 const { VAULT_ROOT } = require("../lib/config");
-const { loadGraph } = require("./graph");
-const SKIPPED_PATH = path.join(VAULT_ROOT, ".source-tracker", "skipped_connections.json");
-const LAST_LINT_PATH = path.join(VAULT_ROOT, ".source-tracker", "last_lint.json");
 
-function loadSkipped() {
-  if (!fs.existsSync(SKIPPED_PATH)) return new Set();
-  const data = JSON.parse(fs.readFileSync(SKIPPED_PATH, "utf-8"));
+function getSkippedPath(vaultRoot) {
+  return path.join(vaultRoot || VAULT_ROOT, ".source-tracker", "skipped_connections.json");
+}
+
+function getLastLintPath(vaultRoot) {
+  return path.join(vaultRoot || VAULT_ROOT, ".source-tracker", "last_lint.json");
+}
+
+function loadSkipped(vaultRoot) {
+  const skippedPath = getSkippedPath(vaultRoot);
+  if (!fs.existsSync(skippedPath)) return new Set();
+  const data = JSON.parse(fs.readFileSync(skippedPath, "utf-8"));
   return new Set(
     (data.skipped || []).map((s) => JSON.stringify([s.a, s.b].sort()))
   );
 }
 
-function hasExistingLink(entryA, entryB) {
+function hasExistingLink(entryA, entryB, vaultRoot) {
+  const root = vaultRoot || VAULT_ROOT;
   const checkFile = (filePath, slug) => {
     try {
       const content = fs.readFileSync(filePath, "utf-8");
@@ -27,20 +34,20 @@ function hasExistingLink(entryA, entryB) {
     }
   };
 
-  const pathA = path.join(VAULT_ROOT, entryA.path);
-  const pathB = path.join(VAULT_ROOT, entryB.path);
+  const pathA = path.join(root, entryA.path);
+  const pathB = path.join(root, entryB.path);
   return checkFile(pathA, entryB.slug) || checkFile(pathB, entryA.slug);
 }
 
 /**
  * Find candidate page pairs with high cosine similarity but no existing links.
  */
-function lintConnections({ top = 30, minScore = 0.5 } = {}) {
-  const store = loadStore();
+function lintConnections({ top = 30, minScore = 0.5, vaultRoot } = {}) {
+  const store = loadStore(vaultRoot);
   if (!store) return { error: "Page store not found. Run build_store first." };
 
   const entries = store.entries;
-  const skipped = loadSkipped();
+  const skipped = loadSkipped(vaultRoot);
 
   const pairs = [];
   const seen = new Set();
@@ -55,7 +62,7 @@ function lintConnections({ top = 30, minScore = 0.5 } = {}) {
 
       const score = Math.round(cosineSimilarity(a.vector, b.vector) * 10000) / 10000;
       if (score < minScore) continue;
-      if (hasExistingLink(a, b)) continue;
+      if (hasExistingLink(a, b, vaultRoot)) continue;
 
       pairs.push({
         slug_a: a.slug, title_a: a.title, summary_a: a.summary,
@@ -72,13 +79,14 @@ function lintConnections({ top = 30, minScore = 0.5 } = {}) {
 /**
  * Record a pair as skipped (false positive).
  */
-function markSkipped(slugA, slugB) {
-  const dir = path.dirname(SKIPPED_PATH);
+function markSkipped(slugA, slugB, vaultRoot) {
+  const skippedPath = getSkippedPath(vaultRoot);
+  const dir = path.dirname(skippedPath);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 
   let data = { skipped: [] };
-  if (fs.existsSync(SKIPPED_PATH)) {
-    data = JSON.parse(fs.readFileSync(SKIPPED_PATH, "utf-8"));
+  if (fs.existsSync(skippedPath)) {
+    data = JSON.parse(fs.readFileSync(skippedPath, "utf-8"));
   }
 
   data.skipped.push({
@@ -86,17 +94,18 @@ function markSkipped(slugA, slugB) {
     skippedAt: new Date().toISOString(),
   });
 
-  fs.writeFileSync(SKIPPED_PATH, JSON.stringify(data, null, 2), "utf-8");
+  fs.writeFileSync(skippedPath, JSON.stringify(data, null, 2), "utf-8");
   return { status: "skipped", a: slugA, b: slugB };
 }
 
 /**
  * Update the last lint timestamp.
  */
-function updateLintTimestamp() {
-  const dir = path.dirname(LAST_LINT_PATH);
+function updateLintTimestamp(vaultRoot) {
+  const lastLintPath = getLastLintPath(vaultRoot);
+  const dir = path.dirname(lastLintPath);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(LAST_LINT_PATH, JSON.stringify({
+  fs.writeFileSync(lastLintPath, JSON.stringify({
     lastLint: new Date().toISOString(),
   }), "utf-8");
 }
@@ -105,8 +114,8 @@ function updateLintTimestamp() {
  * Graph topology lint: find edges in wiki_graph.json that represent
  * meaningful connections but don't have existing wikilinks.
  */
-function graphLint(graph, { minScore = 1.0 } = {}) {
-  const skipped = loadSkipped();
+function graphLint(graph, { minScore = 1.0, vaultRoot } = {}) {
+  const skipped = loadSkipped(vaultRoot);
   const results = [];
 
   for (const edge of graph.edges) {
@@ -119,7 +128,7 @@ function graphLint(graph, { minScore = 1.0 } = {}) {
     const nodeA = graph.nodes[edge.source];
     const nodeB = graph.nodes[edge.target];
     if (!nodeA || !nodeB) continue;
-    if (hasExistingLink({ slug: edge.source, path: nodeA.path }, { slug: edge.target, path: nodeB.path })) continue;
+    if (hasExistingLink({ slug: edge.source, path: nodeA.path }, { slug: edge.target, path: nodeB.path }, vaultRoot)) continue;
 
     results.push({
       slug_a: edge.source,
@@ -252,22 +261,22 @@ function mergeCategorize(vectorResults, graphResults, top) {
 /**
  * Full dual-engine lint. MCP tool handler for lint_full.
  */
-function lintFull({ top = 15, minVectorScore = 0.5, minGraphScore = 1.0 } = {}) {
+function lintFull({ top = 15, minVectorScore = 0.5, minGraphScore = 1.0, vaultRoot } = {}) {
   // Load graph
-  const graph = loadGraph();
+  const { loadGraph } = require("../lib/graph");
+  const graph = loadGraph(vaultRoot);
   if (!graph) return { error: "Graph not built. Run build_wiki_graph first." };
 
   // Load page store (for vector lint)
-  const { loadStore } = require("../lib/page-store");
-  const store = loadStore();
+  const store = loadStore(vaultRoot);
   if (!store) return { error: "Page store not built. Run build_page_store first." };
 
   // Run vector lint (reuse existing logic)
-  const vectorResults = lintConnections({ top: top * 3, minScore: minVectorScore });
+  const vectorResults = lintConnections({ top: top * 3, minScore: minVectorScore, vaultRoot });
   const vectorPairs = vectorResults.candidates || [];
 
   // Run graph lint
-  const graphPairs = graphLint(graph, { minScore: minGraphScore });
+  const graphPairs = graphLint(graph, { minScore: minGraphScore, vaultRoot });
 
   // Merge and categorize
   const categorized = mergeCategorize(vectorPairs, graphPairs, top);

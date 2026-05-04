@@ -15,9 +15,28 @@ const { listDecisions, createDecision, resolveDecision, correctDecision } = requ
 const { handleBuildGraph, handleUpdateGraph } = require("./tools/graph");
 const { handleUpdateEmbedding, handleDeleteEmbedding, handleQueryStatus } = require("./tools/yolo-crud");
 const { validateConfig } = require("./lib/embed");
+const { resolveVaultRoot, resolveVaultInfo, getVaultMap } = require("./lib/config");
 
 function formatError(message) {
   return { content: [{ type: "text", text: JSON.stringify({ error: message }) }], isError: true };
+}
+
+/**
+ * Wrap result with vault info for user visibility.
+ */
+function withVault(result, vaultName) {
+  return { _vault: vaultName, ...result };
+}
+
+/**
+ * Format successful response with vault info.
+ * If result contains an error field, formats as error response.
+ */
+function formatResult(result, vaultName) {
+  if (result && result.error) {
+    return formatError(result.error);
+  }
+  return { content: [{ type: "text", text: JSON.stringify(withVault(result, vaultName), null, 2) }] };
 }
 
 function safeHandler(fn) {
@@ -31,9 +50,11 @@ function safeHandler(fn) {
 }
 
 const server = new Server(
-  { name: "Obsidian-YOLO-llm-wiki-mcp", version: "1.1.0" },
+  { name: "Obsidian-YOLO-llm-wiki-mcp", version: "2.0.0" },
   { capabilities: { tools: {} } }
 );
+
+const vaultParam = { type: "string", description: "Vault name or absolute path (defaults to VAULT_ROOT)" };
 
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
   tools: [
@@ -44,7 +65,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         type: "object",
         properties: {
           query: { type: "string", description: "Search query in natural language" },
-          vault: { type: "string", description: "Vault name (defaults to VAULT_ROOT basename)" },
+          vault: vaultParam,
         },
         required: ["query"],
       },
@@ -58,13 +79,19 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
           top: { type: "number", description: "Max candidates per category (default: 15)" },
           minVectorScore: { type: "number", description: "Minimum cosine similarity threshold (default: 0.5)" },
           minGraphScore: { type: "number", description: "Minimum graph edge weight threshold (default: 1.0)" },
+          vault: vaultParam,
         },
       },
     },
     {
       name: "build_wiki_graph",
       description: "Build or rebuild the wiki graph topology. Scans all wiki pages, extracts wikilinks and sources, calculates 4-signal edge weights with dynamic factors. Pure file IO, no API needed.",
-      inputSchema: { type: "object", properties: {} },
+      inputSchema: {
+        type: "object",
+        properties: {
+          vault: vaultParam,
+        },
+      },
     },
     {
       name: "update_wiki_graph",
@@ -74,6 +101,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         properties: {
           filePath: { type: "string", description: "Path relative to vault root (e.g. 'wiki/entities/Claude Code.md')" },
           semanticChange: { type: "boolean", description: "Whether the edit changed the page's meaning. If omitted, returns diff and asks." },
+          vault: vaultParam,
         },
         required: ["filePath"],
       },
@@ -86,6 +114,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         properties: {
           slugA: { type: "string", description: "Slug of first page (e.g. 'entities/Claude Code')" },
           slugB: { type: "string", description: "Slug of second page" },
+          vault: vaultParam,
         },
         required: ["slugA", "slugB"],
       },
@@ -93,7 +122,12 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     {
       name: "build_page_store",
       description: "Build or rebuild the page embedding store. Embeds all wiki pages and saves vectors to .source-tracker/page_embeddings.json. Requires EMBED_API_URL and EMBED_API_KEY in env.",
-      inputSchema: { type: "object", properties: {} },
+      inputSchema: {
+        type: "object",
+        properties: {
+          vault: vaultParam,
+        },
+      },
     },
     {
       name: "list_decisions",
@@ -102,6 +136,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         type: "object",
         properties: {
           status: { type: "string", enum: ["pending", "resolved"], description: "Filter by status. Omit to return both." },
+          vault: vaultParam,
         },
       },
     },
@@ -126,6 +161,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
             },
             description: "2-4 mutually exclusive action options. At least one should be a conservative no-op.",
           },
+          vault: vaultParam,
         },
         required: ["situation", "options"],
       },
@@ -139,6 +175,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
           id: { type: "string", description: "Decision ID to resolve (e.g. 'DEC-042')" },
           option: { type: "string", description: "Option letter to select (A, B, C, ...). Omit if using customText." },
           customText: { type: "string", description: "Custom decision text. Omit if selecting a predefined option." },
+          vault: vaultParam,
         },
         required: ["id"],
       },
@@ -165,6 +202,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
             },
             description: "Correction options.",
           },
+          vault: vaultParam,
         },
         required: ["id", "originalDecision", "correctionReason", "options"],
       },
@@ -176,6 +214,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         type: "object",
         properties: {
           filePath: { type: "string", description: "Path relative to vault root (e.g. 'wiki/entities/Foo.md')" },
+          vault: vaultParam,
         },
         required: ["filePath"],
       },
@@ -186,7 +225,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       inputSchema: {
         type: "object",
         properties: {
-          vault: { type: "string", description: "Vault name (defaults to VAULT_ROOT basename)" },
+          vault: vaultParam,
           path: { type: "string", description: "Page relative path (e.g., 'wiki/entities/Foo.md')" },
           content: { type: "string", description: "Page content to embed" },
           metadata: { type: "object", description: "Additional metadata (optional)" },
@@ -200,7 +239,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       inputSchema: {
         type: "object",
         properties: {
-          vault: { type: "string", description: "Vault name (defaults to VAULT_ROOT basename)" },
+          vault: vaultParam,
           path: { type: "string", description: "Page relative path" },
         },
         required: ["path"],
@@ -212,7 +251,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       inputSchema: {
         type: "object",
         properties: {
-          vault: { type: "string", description: "Vault name (defaults to VAULT_ROOT basename)" },
+          vault: vaultParam,
         },
       },
     },
@@ -228,94 +267,112 @@ server.setRequestHandler(CallToolRequestSchema, safeHandler(async (request) => {
       if (!query.trim()) {
         return formatError("search_wiki requires a non-empty query string");
       }
-      const result = await searchWiki(query, args.vault);
-      return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+      const { vaultRoot, vaultName } = resolveVaultInfo(args.vault);
+      const result = await searchWiki(query, vaultRoot);
+      return formatResult(result, vaultName);
     }
 
     case "build_wiki_graph": {
-      const result = handleBuildGraph();
-      return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+      const { vaultRoot, vaultName } = resolveVaultInfo(args.vault);
+      const result = handleBuildGraph(vaultRoot);
+      return formatResult(result, vaultName);
     }
 
     case "update_wiki_graph": {
       if (!args.filePath) {
         return formatError("update_wiki_graph requires a filePath");
       }
+      const { vaultRoot, vaultName } = resolveVaultInfo(args.vault);
       const result = handleUpdateGraph({
         filePath: args.filePath,
         semanticChange: args.semanticChange,
+        vaultRoot,
       });
-      return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+      return formatResult(result, vaultName);
     }
 
     case "lint_full": {
+      const { vaultRoot, vaultName } = resolveVaultInfo(args.vault);
       const result = lintFull({
         top: args.top,
         minVectorScore: args.minVectorScore,
         minGraphScore: args.minGraphScore,
+        vaultRoot,
       });
-      return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+      if (!result.error) {
+        updateLintTimestamp(vaultRoot);
+      }
+      return formatResult(result, vaultName);
     }
 
     case "mark_skipped_connection": {
       if (!args.slugA || !args.slugB) {
         return formatError("mark_skipped_connection requires slugA and slugB");
       }
-      const result = markSkipped(args.slugA, args.slugB);
-      return { content: [{ type: "text", text: JSON.stringify(result) }] };
+      const { vaultRoot, vaultName } = resolveVaultInfo(args.vault);
+      const result = markSkipped(args.slugA, args.slugB, vaultRoot);
+      return formatResult(result, vaultName);
     }
 
     case "build_page_store": {
       const configError = validateConfig();
       if (configError) return formatError(configError);
-      const result = await handleBuildStore();
-      return { content: [{ type: "text", text: JSON.stringify(result) }] };
+      const { vaultRoot, vaultName } = resolveVaultInfo(args.vault);
+      const result = await handleBuildStore(vaultRoot);
+      return formatResult(result, vaultName);
     }
 
     case "update_page_store": {
       if (!args.filePath) {
         return formatError("update_page_store requires a filePath");
       }
-      const result = await handleUpdateStore({ filePath: args.filePath });
-      return { content: [{ type: "text", text: JSON.stringify(result) }] };
+      const { vaultName } = resolveVaultInfo(args.vault);
+      const result = await handleUpdateStore({ filePath: args.filePath, vault: args.vault });
+      return formatResult(result, vaultName);
     }
 
     case "update_pglite_embedding": {
       if (!args.path || !args.content) {
         return formatError("update_pglite_embedding requires path and content");
       }
+      const { vaultName } = resolveVaultInfo(args.vault);
       const result = await handleUpdateEmbedding(args);
-      return { content: [{ type: "text", text: JSON.stringify(result) }] };
+      return formatResult(result, vaultName);
     }
 
     case "delete_pglite_embedding": {
       if (!args.path) {
         return formatError("delete_pglite_embedding requires path");
       }
+      const { vaultName } = resolveVaultInfo(args.vault);
       const result = await handleDeleteEmbedding(args);
-      return { content: [{ type: "text", text: JSON.stringify(result) }] };
+      return formatResult(result, vaultName);
     }
 
     case "query_pglite_status": {
+      const { vaultName } = resolveVaultInfo(args.vault);
       const result = handleQueryStatus(args);
-      return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+      return formatResult(result, vaultName);
     }
 
     case "list_decisions": {
-      const result = listDecisions({ status: args.status });
-      return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+      const { vaultRoot, vaultName } = resolveVaultInfo(args.vault);
+      const result = listDecisions({ status: args.status, vaultRoot });
+      return formatResult(result, vaultName);
     }
 
     case "create_decision": {
       if (!args.situation || !args.options || !args.options.length) {
         return formatError("create_decision requires situation and at least one option");
       }
+      const { vaultRoot, vaultName } = resolveVaultInfo(args.vault);
       const result = createDecision({
         id: args.id,
         situation: args.situation,
         options: args.options,
+        vaultRoot,
       });
-      return { content: [{ type: "text", text: JSON.stringify(result) }] };
+      return formatResult(result, vaultName);
     }
 
     case "resolve_decision": {
@@ -325,25 +382,29 @@ server.setRequestHandler(CallToolRequestSchema, safeHandler(async (request) => {
       if (!args.option && !args.customText) {
         return formatError("resolve_decision requires either option or customText");
       }
+      const { vaultRoot, vaultName } = resolveVaultInfo(args.vault);
       const result = resolveDecision({
         id: args.id,
         option: args.option,
         customText: args.customText,
+        vaultRoot,
       });
-      return { content: [{ type: "text", text: JSON.stringify(result) }] };
+      return formatResult(result, vaultName);
     }
 
     case "correct_decision": {
       if (!args.id || !args.originalDecision || !args.correctionReason || !args.options) {
         return formatError("correct_decision requires id, originalDecision, correctionReason, and options");
       }
+      const { vaultRoot, vaultName } = resolveVaultInfo(args.vault);
       const result = correctDecision({
         id: args.id,
         originalDecision: args.originalDecision,
         correctionReason: args.correctionReason,
         options: args.options,
+        vaultRoot,
       });
-      return { content: [{ type: "text", text: JSON.stringify(result) }] };
+      return formatResult(result, vaultName);
     }
 
     default:

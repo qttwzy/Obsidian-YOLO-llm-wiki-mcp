@@ -2,21 +2,32 @@
 
 const path = require("path");
 const { buildStore, updateEntry } = require("../lib/page-store");
-const { VAULT_ROOT } = require("../lib/config");
+const { resolveVaultRoot, assertInsideVault } = require("../lib/config");
 
-async function handleBuildStore() {
+/**
+ * Full rebuild of page embedding store.
+ * @param {string} [vaultRoot]
+ */
+async function handleBuildStore(vaultRoot) {
   try {
-    const result = await buildStore();
+    const result = await buildStore(vaultRoot);
     return result;
   } catch (e) {
     return { error: e.message };
   }
 }
 
-async function handleUpdateStore({ filePath }) {
+/**
+ * Update a single page in the store.
+ * @param {object} args
+ * @param {string} args.filePath - Relative path (e.g., 'wiki/entities/Foo.md')
+ * @param {string} [args.vault] - Vault name or path
+ */
+async function handleUpdateStore({ filePath, vault }) {
   try {
-    const fullPath = path.resolve(VAULT_ROOT, filePath);
-    const result = await updateEntry(fullPath);
+    const vaultRoot = resolveVaultRoot(vault);
+    const fullPath = assertInsideVault(filePath, vaultRoot);
+    const result = await updateEntry(fullPath, vaultRoot);
     return result;
   } catch (e) {
     return { error: e.message };

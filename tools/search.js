@@ -1,22 +1,29 @@
 "use strict";
 
-const { execSync } = require("child_process");
+const { execFileSync } = require("child_process");
 const path = require("path");
 const { embedTexts } = require("../lib/embed");
 const { searchStore, loadStore } = require("../lib/page-store");
 const { queryWikiChunks } = require("../lib/pglite");
-const { VAULT_ROOT } = require("../lib/config");
+const { resolveVaultRoot } = require("../lib/config");
+
+const GREP_SCORE = 0.5;
+const GREP_BOOST_THRESHOLD = 0.6;
+const MAX_RESULTS = 8;
 
 /**
  * Channel 1: Grep wiki/ for keyword matches.
+ * @param {string} query
+ * @param {string} [vaultRoot]
  */
-function grepWiki(query) {
+function grepWiki(query, vaultRoot) {
   try {
     const keywords = query.split(/\s+/).filter((w) => w.length > 1).join("|");
     if (!keywords) return [];
 
-    const result = execSync(
-      `grep -rlE "${keywords}" "${VAULT_ROOT}/wiki/" --include="*.md"`,
+    const wikiDir = path.join(vaultRoot, "wiki");
+    const result = execFileSync(
+      "grep", ["-rlE", keywords, wikiDir, "--include=*.md"],
       { timeout: 5000, encoding: "utf-8", stdio: ["ignore", "pipe", "ignore"] }
     ).trim();
 
@@ -24,7 +31,7 @@ function grepWiki(query) {
       .split("\n")
       .filter(Boolean)
       .map((fp) => ({
-        path: path.relative(VAULT_ROOT, fp).replace(/\\/g, "/"),
+        path: path.relative(vaultRoot, fp).replace(/\\/g, "/"),
         score: 1.0,
         source: "grep",
         preview: null,
@@ -36,14 +43,18 @@ function grepWiki(query) {
 
 /**
  * Channel 2: Page embedding store cosine search.
+ * @param {number[]} queryVec
+ * @param {string} [vaultRoot]
  */
-async function pageSearch(queryVec) {
-  const results = searchStore(queryVec, 10);
+async function pageSearch(queryVec, vaultRoot) {
+  const results = searchStore(queryVec, 10, vaultRoot);
   return results.map((r) => ({ ...r, source: "page_store" }));
 }
 
 /**
  * Channel 3: YOLO PGlite pgvector chunk search.
+ * @param {number[]} queryVec
+ * @param {string} [vault]
  */
 async function chunkSearch(queryVec, vault) {
   const { source, rows } = await queryWikiChunks(queryVec, 20, vault);
@@ -80,28 +91,32 @@ function mergeResults(grepResults, pageResults, chunkResults, storeEntries) {
   // Add grep results with a small score penalty so semantic results rank higher
   for (const r of grepResults) {
     const key = r.path;
-    const adjustedScore = 0.5; // Grep is binary match, use moderate score
+    const adjustedScore = GREP_SCORE;
     if (!seen.has(key)) {
       seen.set(key, enrichWithPageStore({ ...r, score: adjustedScore }, storeEntries));
-    } else if (seen.get(key).score < 0.6) {
+    } else if (seen.get(key).score < GREP_BOOST_THRESHOLD) {
       // Boost: grep confirming a low-scoring semantic result
       const existing = seen.get(key);
-      seen.set(key, { ...existing, score: Math.max(existing.score, 0.6) });
+      seen.set(key, { ...existing, score: Math.max(existing.score, GREP_BOOST_THRESHOLD) });
     }
   }
 
   const merged = Array.from(seen.values());
   merged.sort((a, b) => b.score - a.score);
-  return merged.slice(0, 8);
+  return merged.slice(0, MAX_RESULTS);
 }
 
 /**
  * Main search entry point.
+ * @param {string} query
+ * @param {string} [vault] - Vault name or path
  */
 async function searchWiki(query, vault) {
   if (!query || query.trim().length === 0) {
     return { results: [], source: "none" };
   }
+
+  const vaultRoot = resolveVaultRoot(vault);
 
   // Embed question once
   const queryVecs = await embedTexts([query.trim()]);
@@ -109,12 +124,12 @@ async function searchWiki(query, vault) {
 
   // Three channels in parallel
   const [grepResults, pageResults, chunkResults] = await Promise.all([
-    Promise.resolve(grepWiki(query)),
-    pageSearch(queryVec),
+    Promise.resolve(grepWiki(query, vaultRoot)),
+    pageSearch(queryVec, vaultRoot),
     chunkSearch(queryVec, vault),
   ]);
 
-  const store = loadStore();
+  const store = loadStore(vaultRoot);
   const storeEntries = store ? store.entries : [];
   const results = mergeResults(grepResults, pageResults, chunkResults, storeEntries);
 

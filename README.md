@@ -13,7 +13,6 @@
 #### 1. 三通道融合搜索
 
 同时发起 Grep 关键词匹配、页面向量余弦相似度、YOLO PGlite 分块向量三路查询，结果自动合并去重并按相关性排序。语义通道提供精确的相关性分数，Grep 通道补充零成本的关键词覆盖，两者互补不冲突。
-
 ![三通道融合搜索](docs/images/search-flow.svg)
 
 #### 2. 图拓扑分析
@@ -23,13 +22,11 @@
 #### 3. 人机协作决策工作流
 
 LLM 遇到矛盾或不确定的信息时，不会自行判断，而是创建结构化的决策条目（带可选项和后果说明）写入 `decisions.md`。用户在 Obsidian 中勾选或通过对话解决，支持事后修正，决策过程完全可追溯。
-
 ![人机协作决策工作流](docs/images/decision-workflow.svg)
 
 #### 4. YOLO PGlite 双策略集成
 
 优先通过 `obsidian eval` CLI 实时查询 Obsidian 中 YOLO 插件的 PGlite 向量库；Obsidian 未运行时自动回退到本地缓存的 PGlite 数据库，确保搜索始终可用。
-
 ![YOLO PGlite 双策略集成](docs/images/pglite-fallback.svg)
 
 #### 5. 零外部依赖
@@ -52,27 +49,26 @@ LLM 遇到矛盾或不确定的信息时，不会自行判断，而是创建结�
 #### 6. 增量更新
 
 支持单页面向量增量更新（`update_page_store`），编辑一个页面后无需重建整个索引。
-
 ![增量更新](docs/images/incremental-update.svg)
 
 ### 功能特性
 
-| 工具 | 说明 |
-|------|------|
-| `search_wiki` | 三通道并行搜索（grep、页面向量、PGlite 分块） |
-| `lint_full` | 双引擎 Lint：向量语义 + 图拓扑分析，输出四类候选对和结构洞见 |
-| `build_wiki_graph` | 构建/重建知识图谱（纯文件 IO，零 API 成本） |
-| `update_wiki_graph` | 编辑页面后增量更新图数据（先 diff 分析，再确认语义变化） |
-| `mark_skipped_connection` | 标记误报的检查结果以忽略 |
-| `build_page_store` | 构建/重建页面向量索引 |
-| `update_page_store` | 编辑后更新单个页面的向量 |
-| `list_decisions` | 列出待处理和已解决的决策 |
-| `create_decision` | 创建带可选项的决策条目 |
-| `resolve_decision` | 选择选项以解决决策 |
-| `correct_decision` | 对已解决的决策添加修正 |
-| `update_pglite_embedding` | 创建/更新 YOLO PGlite 嵌入记录 |
-| `delete_pglite_embedding` | 从 YOLO PGlite 删除嵌入记录 |
-| `query_pglite_status` | 查询 YOLO PGlite 数据库状态与统计 |
+| 工具                        | 说明                                 |
+| ------------------------- | ---------------------------------- |
+| `search_wiki`             | 三通道并行搜索（grep、页面向量、PGlite 分块）       |
+| `lint_full`               | 双引擎 Lint：向量语义 + 图拓扑分析，输出四类候选对和结构洞见 |
+| `build_wiki_graph`        | 构建/重建知识图谱（纯文件 IO，零 API 成本）         |
+| `update_wiki_graph`       | 编辑页面后增量更新图数据（先 diff 分析，再确认语义变化）    |
+| `mark_skipped_connection` | 标记误报的检查结果以忽略                       |
+| `build_page_store`        | 构建/重建页面向量索引                        |
+| `update_page_store`       | 编辑后更新单个页面的向量                       |
+| `list_decisions`          | 列出待处理和已解决的决策                       |
+| `create_decision`         | 创建带可选项的决策条目                        |
+| `resolve_decision`        | 选择选项以解决决策                          |
+| `correct_decision`        | 对已解决的决策添加修正                        |
+| `update_pglite_embedding` | 创建/更新 YOLO PGlite 嵌入记录             |
+| `delete_pglite_embedding` | 从 YOLO PGlite 删除嵌入记录               |
+| `query_pglite_status`     | 查询 YOLO PGlite 数据库状态与统计            |
 
 ### API 示例
 
@@ -136,6 +132,8 @@ JSON 请求/响应格式。完整 Schema 见各工具的 `inputSchema`。
 ### 安装
 
 ```bash
+git clone https://github.com/<user>/Obsidian-YOLO-llm-wiki-mcp.git
+cd Obsidian-YOLO-llm-wiki-mcp
 npm install
 ```
 
@@ -145,12 +143,12 @@ npm install
 
 设置环境变量：
 
-| 变量 | 必需 | 说明 |
-|------|------|------|
-| `VAULT_ROOT` | 否 | Obsidian 知识库的绝对路径，默认为包的 `../../` 相对路径 |
-| `EMBED_API_URL` | 是 | Embedding API 端点（兼容 OpenAI 格式） |
-| `EMBED_API_KEY` | 是 | Embedding API 密钥 |
-| `EMBED_MODEL` | 否 | Embedding 模型名称，默认 `Qwen/Qwen3-Embedding-8B` |
+| 变量              | 必需  | 说明                                          |
+| --------------- | --- | ------------------------------------------- |
+| `VAULT_ROOT`    | 否   | Obsidian 知识库的绝对路径，默认为包的 `../../` 相对路径       |
+| `EMBED_API_URL` | 是   | Embedding API 端点（兼容 OpenAI 格式）              |
+| `EMBED_API_KEY` | 是   | Embedding API 密钥                            |
+| `EMBED_MODEL`   | 否   | Embedding 模型名称，默认 `Qwen/Qwen3-Embedding-8B` |
 
 #### Claude Code / Cursor / Windsurf
 
@@ -280,7 +278,6 @@ MCP server for managing an [LLM-Wiki](https://gist.github.com/karpathy/442a6bf55
 #### 1. Three-Channel Fusion Search
 
 Fires Grep keyword matching, page-vector cosine similarity, and YOLO PGlite chunk-vector queries in parallel. Results are automatically merged, deduplicated, and ranked by relevance. Semantic channels provide precise relevance scores while Grep supplements with zero-cost keyword coverage — complementary, not conflicting.
-
 ![Three-Channel Fusion Search](docs/images/search-flow.svg)
 
 #### 2. Graph Topology Analysis
@@ -290,13 +287,11 @@ Builds a knowledge graph using a 4-Signal relevance model (direct links, source 
 #### 3. Human-in-the-Loop Decision Workflow
 
 When the LLM encounters conflicting or uncertain information, it doesn't guess — it creates structured decision entries (with selectable options and consequence descriptions) in `decisions.md`. Users resolve them by checking boxes in Obsidian or via conversation. Supports post-hoc corrections, making the entire decision trail fully traceable.
-
 ![Human-in-the-Loop Decision Workflow](docs/images/decision-workflow.svg)
 
 #### 4. YOLO PGlite Dual-Strategy Integration
 
 Primarily queries YOLO's PGlite vector database in real-time via the `obsidian eval` CLI when Obsidian is running; automatically falls back to a local cached PGlite database when Obsidian is unavailable, ensuring search always works.
-
 ![YOLO PGlite Dual-Strategy Integration](docs/images/pglite-fallback.svg)
 
 #### 5. Zero External Dependencies
@@ -319,27 +314,26 @@ Only depends on `@modelcontextprotocol/sdk` and `@electric-sql/pglite`. The Embe
 #### 6. Incremental Updates
 
 Supports single-page vector incremental updates (`update_page_store`), so editing one page doesn't require rebuilding the entire index.
-
 ![Incremental Updates](docs/images/incremental-update.svg)
 
 ### Features
 
-| Tool | Description |
-|------|-------------|
-| `search_wiki` | Three-channel parallel search (grep, page embeddings, PGlite chunks) |
-| `lint_full` | Dual-engine lint: vector cosine similarity + graph topology, 4 categories + structural insights |
-| `build_wiki_graph` | Build/rebuild knowledge graph (pure file IO, zero API cost) |
-| `update_wiki_graph` | Incremental graph update after editing (diff analysis + semantic change confirmation) |
-| `mark_skipped_connection` | Mark false-positive lint results to ignore them |
-| `build_page_store` | Build/rebuild the page embedding index |
-| `update_page_store` | Update a single page's embedding after editing |
-| `list_decisions` | List pending and resolved decisions |
-| `create_decision` | Create a decision entry with selectable options |
-| `resolve_decision` | Resolve a decision by selecting an option |
-| `correct_decision` | Add a correction to a previously resolved decision |
-| `update_pglite_embedding` | Create or update an embedding record in YOLO's PGlite database |
-| `delete_pglite_embedding` | Delete embedding records from YOLO's PGlite database |
-| `query_pglite_status` | Query YOLO PGlite database status and statistics |
+| Tool                      | Description                                                                                     |
+| ------------------------- | ----------------------------------------------------------------------------------------------- |
+| `search_wiki`             | Three-channel parallel search (grep, page embeddings, PGlite chunks)                            |
+| `lint_full`               | Dual-engine lint: vector cosine similarity + graph topology, 4 categories + structural insights |
+| `build_wiki_graph`        | Build/rebuild knowledge graph (pure file IO, zero API cost)                                     |
+| `update_wiki_graph`       | Incremental graph update after editing (diff analysis + semantic change confirmation)           |
+| `mark_skipped_connection` | Mark false-positive lint results to ignore them                                                 |
+| `build_page_store`        | Build/rebuild the page embedding index                                                          |
+| `update_page_store`       | Update a single page's embedding after editing                                                  |
+| `list_decisions`          | List pending and resolved decisions                                                             |
+| `create_decision`         | Create a decision entry with selectable options                                                 |
+| `resolve_decision`        | Resolve a decision by selecting an option                                                       |
+| `correct_decision`        | Add a correction to a previously resolved decision                                              |
+| `update_pglite_embedding` | Create or update an embedding record in YOLO's PGlite database                                  |
+| `delete_pglite_embedding` | Delete embedding records from YOLO's PGlite database                                            |
+| `query_pglite_status`     | Query YOLO PGlite database status and statistics                                                |
 
 ### API Examples
 
@@ -403,6 +397,8 @@ JSON request/response format. See tool `inputSchema` for full specifications.
 ### Install
 
 ```bash
+git clone https://github.com/<user>/Obsidian-YOLO-llm-wiki-mcp.git
+cd Obsidian-YOLO-llm-wiki-mcp
 npm install
 ```
 
@@ -412,12 +408,12 @@ npm install
 
 Set environment variables:
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `VAULT_ROOT` | No | Absolute path to your Obsidian vault. Defaults to `../../` relative to the package. |
-| `EMBED_API_URL` | Yes | Embedding API endpoint (OpenAI-compatible) |
-| `EMBED_API_KEY` | Yes | Embedding API key |
-| `EMBED_MODEL` | No | Embedding model name. Default: `Qwen/Qwen3-Embedding-8B` |
+| Variable        | Required | Description                                                                         |
+| --------------- | -------- | ----------------------------------------------------------------------------------- |
+| `VAULT_ROOT`    | No       | Absolute path to your Obsidian vault. Defaults to `../../` relative to the package. |
+| `EMBED_API_URL` | Yes      | Embedding API endpoint (OpenAI-compatible)                                          |
+| `EMBED_API_KEY` | Yes      | Embedding API key                                                                   |
+| `EMBED_MODEL`   | No       | Embedding model name. Default: `Qwen/Qwen3-Embedding-8B`                            |
 
 #### Claude Code / Cursor / Windsurf
 

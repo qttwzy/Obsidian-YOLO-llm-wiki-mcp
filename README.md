@@ -71,6 +71,65 @@ LLM 遇到矛盾或不确定的信息时，不会自行判断，而是创建结�
 | `resolve_decision` | 选择选项以解决决策 |
 | `correct_decision` | 对已解决的决策添加修正 |
 
+### API 示例
+
+JSON 请求/响应格式。完整 Schema 见各工具的 `inputSchema`。
+
+#### 搜索
+
+```json
+// → search_wiki
+{ "query": "如何配置 Embedding 模型" }
+
+// ← { "results": [{ "path": "wiki/...", "score": 0.92, "slug": "...", "title": "..." }],
+//      "sources": ["page_store", "grep"], "count": 5, "_vault": "AI" }
+```
+
+#### 图与检查
+
+```json
+// → build_wiki_graph
+{}
+
+// → lint_full
+{ "top": 10, "minVectorScore": 0.6, "minGraphScore": 1.5 }
+
+// ← { "cross_signal": [...], "semantic_only": [...], "structural_only": [...],
+//      "structural_insights": [...], "summary": { "total_candidates": 15, ... } }
+```
+
+#### 页面向量
+
+```json
+// → build_page_store
+{}
+
+// → update_page_store
+{ "filePath": "wiki/entities/Claude Code.md" }
+```
+
+#### 决策
+
+```json
+// → create_decision
+{ "situation": "两个来源对 API 端点有不同描述",
+  "options": [{ "label": "A", "action": "采用来源1", "consequence": "..." },
+              { "label": "B", "action": "采用来源2", "consequence": "..." }] }
+
+// → resolve_decision
+{ "id": "DEC-001", "option": "A" }
+```
+
+#### YOLO PGlite CRUD
+
+```json
+// → query_pglite_status
+{}
+
+// → update_pglite_embedding
+{ "path": "wiki/entities/Foo.md", "content": "页面完整 Markdown 内容" }
+```
+
 ### 安装
 
 ```bash
@@ -263,6 +322,65 @@ Supports single-page vector incremental updates (`update_page_store`), so editin
 | `create_decision` | Create a decision entry with selectable options |
 | `resolve_decision` | Resolve a decision by selecting an option |
 | `correct_decision` | Add a correction to a previously resolved decision |
+
+### API Examples
+
+JSON request/response format. See tool `inputSchema` for full specifications.
+
+#### Search
+
+```json
+// → search_wiki
+{ "query": "how to configure embedding model" }
+
+// ← { "results": [{ "path": "wiki/...", "score": 0.92, "slug": "...", "title": "..." }],
+//      "sources": ["page_store", "grep"], "count": 5, "_vault": "AI" }
+```
+
+#### Graph & Lint
+
+```json
+// → build_wiki_graph
+{}
+
+// → lint_full
+{ "top": 10, "minVectorScore": 0.6, "minGraphScore": 1.5 }
+
+// ← { "cross_signal": [...], "semantic_only": [...], "structural_only": [...],
+//      "structural_insights": [...], "summary": { "total_candidates": 15, ... } }
+```
+
+#### Page Store
+
+```json
+// → build_page_store
+{}
+
+// → update_page_store
+{ "filePath": "wiki/entities/Claude Code.md" }
+```
+
+#### Decisions
+
+```json
+// → create_decision
+{ "situation": "Two sources describe the API endpoint differently",
+  "options": [{ "label": "A", "action": "Use source 1", "consequence": "..." },
+              { "label": "B", "action": "Use source 2", "consequence": "..." }] }
+
+// → resolve_decision
+{ "id": "DEC-001", "option": "A" }
+```
+
+#### YOLO PGlite CRUD
+
+```json
+// → query_pglite_status
+{}
+
+// → update_pglite_embedding
+{ "path": "wiki/entities/Foo.md", "content": "Full page markdown content" }
+```
 
 ### Install
 

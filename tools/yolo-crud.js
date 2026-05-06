@@ -77,4 +77,4 @@ function handleQueryStatus(args) {
   return queryPgliteStatus(vault);
 }
 
-module.exports = { handleUpdateEmbedding, handleDeleteEmbedding, handleQueryStatus };
+module.exports = { contentHash, handleUpdateEmbedding, handleDeleteEmbedding, handleQueryStatus };

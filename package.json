@@ -8,7 +8,8 @@
     "Obsidian-YOLO-llm-wiki-mcp": "server.js"
   },
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "node --test tests/"
   },
   "keywords": [
     "mcp",

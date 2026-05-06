@@ -136,6 +136,8 @@ JSON 请求/响应格式。完整 Schema 见各工具的 `inputSchema`。
 npm install
 ```
 
+> 遇到问题？查看 [快速排查清单](docs/quickstart-troubleshooting.md)。
+
 ### 配置
 
 设置环境变量：
@@ -387,6 +389,8 @@ JSON request/response format. See tool `inputSchema` for full specifications.
 ```bash
 npm install
 ```
+
+> Having trouble? See the [Quick-Start Troubleshooting Guide](docs/quickstart-troubleshooting.md).
 
 ### Configure
 

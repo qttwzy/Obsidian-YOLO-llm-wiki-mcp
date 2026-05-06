@@ -19,6 +19,8 @@
 
 基于 4-Signal 相关性模型（直接链接、源文件重叠、共同邻居 Adamic-Adar、类型亲和度）构建知识图谱，使用动态权重因子（热门节点惩罚、稀缺链接奖励、多信号叠加奖励）自动发现真正有价值的连接。纯文件 IO，零 API 成本。
 
+
+
 #### 3. 人机协作决策工作流
 
 LLM 遇到矛盾或不确定的信息时，不会自行判断，而是创建结构化的决策条目（带可选项和后果说明）写入 `decisions.md`。用户在 Obsidian 中勾选或通过对话解决，支持事后修正，决策过程完全可追溯。
@@ -52,26 +54,26 @@ LLM 遇到矛盾或不确定的信息时，不会自行判断，而是创建结�
 
 ### 功能特性
 
-| 工具                        | 说明                                                     |
-| ------------------------- | ------------------------------------------------------ |
-| `init_wiki`               | 初始化 LLM-Wiki 骨架（含 Karpathy 设计模式原文）                     |
-| `set_inbox_folders`       | 配置收件箱目录（set/add/remove/list）                           |
-| `build_page_store`        | 构建/重建页面向量索引                                            |
-| `build_wiki_graph`        | 构建/重建知识图谱（纯文件 IO，零 API 成本） |
-| `discover_sources`        | 扫描收件箱中未处理的新文件                                          |
-| `ingest_source`           | 录入源文件：建页面 → 更新索引 → 写日志 → 归档                            |
-| `update_page_store`       | 编辑后更新单个页面的向量                                           |
-| `update_wiki_graph`       | 编辑页面后增量更新图数据（先 diff 分析，再确认语义变化）                        |
-| `update_pglite_embedding` | 创建/更新 YOLO PGlite 嵌入记录                                 |
-| `search_wiki`             | 三通道并行搜索（grep、页面向量、PGlite 分块）                           |
-| `lint_full`               | 双引擎 Lint：向量语义 + 图拓扑分析，输出四类候选对和结构洞见                     |
-| `mark_skipped_connection` | 标记误报的检查结果以忽略                                           |
-| `list_decisions`          | 列出待处理和已解决的决策                                           |
-| `create_decision`         | 创建带可选项的决策条目                                            |
-| `resolve_decision`        | 选择选项以解决决策                                              |
-| `correct_decision`        | 对已解决的决策添加修正                                            |
-| `delete_pglite_embedding` | 从 YOLO PGlite 删除嵌入记录                                   |
-| `query_pglite_status`     | 查询 YOLO PGlite 数据库状态与统计                                |
+| 工具                        | 说明                                 |
+| ------------------------- | ---------------------------------- |
+| `init_wiki`               | 初始化 LLM-Wiki 骨架（含 Karpathy 设计模式原文） |
+| `set_inbox_folders`       | 配置收件箱目录（set/add/remove/list）       |
+| `build_page_store`        | 构建/重建页面向量索引                        |
+| `build_wiki_graph`        | 构建/重建知识图谱（纯文件 IO，零 API 成本）         |
+| `discover_sources`        | 扫描收件箱中未处理的新文件                      |
+| `ingest_source`           | 录入源文件：建页面 → 更新索引 → 写日志 → 归档        |
+| `update_page_store`       | 编辑后更新单个页面的向量                       |
+| `update_wiki_graph`       | 编辑页面后增量更新图数据（先 diff 分析，再确认语义变化）    |
+| `update_pglite_embedding` | 创建/更新 YOLO PGlite 嵌入记录             |
+| `search_wiki`             | 三通道并行搜索（grep、页面向量、PGlite 分块）       |
+| `lint_full`               | 双引擎 Lint：向量语义 + 图拓扑分析，输出四类候选对和结构洞见 |
+| `mark_skipped_connection` | 标记误报的检查结果以忽略                       |
+| `list_decisions`          | 列出待处理和已解决的决策                       |
+| `create_decision`         | 创建带可选项的决策条目                        |
+| `resolve_decision`        | 选择选项以解决决策                          |
+| `correct_decision`        | 对已解决的决策添加修正                        |
+| `delete_pglite_embedding` | 从 YOLO PGlite 删除嵌入记录               |
+| `query_pglite_status`     | 查询 YOLO PGlite 数据库状态与统计            |
 
 ### 安装
 
@@ -249,6 +251,8 @@ Fires Grep keyword matching, page-vector cosine similarity, and YOLO PGlite chun
 #### 2. Graph Topology Analysis
 
 Builds a knowledge graph using a 4-Signal relevance model (direct links, source overlap, common neighbors via Adamic-Adar, type affinity) with dynamic weighting factors (hub penalty, rarity bonus, reinforcement bonus) to automatically discover truly meaningful connections. Pure file IO, zero API cost.
+
+
 
 #### 3. Human-in-the-Loop Decision Workflow
 

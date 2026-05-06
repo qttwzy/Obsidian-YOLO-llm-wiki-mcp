@@ -230,7 +230,7 @@ cd Obsidian-YOLO-llm-wiki-mcp
 npm test
 ```
 
-预期输出：`88 pass / 0 fail`（PGlite 测试在 Obsidian 未运行时会自动跳过，不影响结果）。
+预期输出：`98 pass / 0 fail`（PGlite 测试在 Obsidian 未运行时会自动跳过）。
 
 ### 3.3 客户端无响应
 

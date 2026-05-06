@@ -8,8 +8,8 @@
 
 ### 0.1 Node.js 版本不足
 
-| 现象 | 原因 | 解决 |
-|------|------|------|
+| 现象                   | 原因           | 解决                                   |
+| -------------------- | ------------ | ------------------------------------ |
 | `npm install` 报版本不兼容 | Node.js < 18 | `node --version` 确认版本，安装 Node.js ≥18 |
 
 ```bash
@@ -19,8 +19,8 @@ node --version   # 必须 >= 18.0.0
 
 ### 0.2 npm 镜像问题
 
-| 现象 | 原因 | 解决 |
-|------|------|------|
+| 现象                    | 原因                  | 解决            |
+| --------------------- | ------------------- | ------------- |
 | `npm install` 超时或 404 | 镜像源不可用（如 npmmirror） | 切回官方 registry |
 
 ```bash
@@ -31,14 +31,14 @@ npm install --registry https://registry.npmjs.org/
 
 ### 0.3 权限问题
 
-| 现象 | 原因 | 解决 |
-|------|------|------|
+| 现象                 | 原因          | 解决                             |
+| ------------------ | ----------- | ------------------------------ |
 | `EACCES` / `EPERM` | 全局安装目录无写入权限 | 不要用 `-g`；如需全局安装加 `sudo` 或用 nvm |
 
 ### 0.4 Obsidian CLI 未安装
 
-| 现象 | 原因 | 解决 |
-|------|------|------|
+| 现象                                                            | 原因                       | 解决                      |
+| ------------------------------------------------------------- | ------------------------ | ----------------------- |
 | `build_page_store` 正常但 `query_pglite_status` 返回 `unavailable` | Obsidian CLI 未安装或不在 PATH | 在 Obsidian 设置中启用 CLI 支持 |
 
 ```bash
@@ -52,8 +52,8 @@ where obsidian        # Windows
 
 ### 0.5 YOLO 插件
 
-| 现象 | 原因 | 解决 |
-|------|------|------|
+| 现象                                   | 原因             | 解决                        |
+| ------------------------------------ | -------------- | ------------------------- |
 | PGlite 工具返回 "YOLO plugin not loaded" | YOLO 插件未安装或未启用 | 在 Obsidian 社区插件中安装 `YOLO` |
 
 ---
@@ -70,8 +70,8 @@ npm install
 
 ### 1.2 node_modules 损坏
 
-| 现象 | 原因 | 解决 |
-|------|------|------|
+| 现象                                               | 原因                       | 解决   |
+| ------------------------------------------------ | ------------------------ | ---- |
 | `Cannot find module '@modelcontextprotocol/sdk'` | 依赖未安装或 `node_modules` 损坏 | 删掉重装 |
 
 ```bash
@@ -81,8 +81,8 @@ npm install
 
 ### 1.3 网络代理问题
 
-| 现象 | 原因 | 解决 |
-|------|------|------|
+| 现象                                        | 原因        | 解决     |
+| ----------------------------------------- | --------- | ------ |
 | `npm install` 报 `ECONNREFUSED` 或 proxy 错误 | HTTP 代理干扰 | 清除代理设置 |
 
 ```bash
@@ -139,31 +139,31 @@ npm config delete https-proxy
 
 ### 2.2 常见配置错误
 
-| 错误 | 原因 | 排查 |
-|------|------|------|
-| server.js 路径错误 | `args` 路径写错 | 用绝对路径，不要用 `~` 或相对路径 |
-| `JSON` 格式错误 | 多了一个逗号或注释 | JSON 不支持尾随逗号和 `//` 注释。用 `jq` 或在线工具验证 |
-| 配置不生效 | 文件路径不对 | Claude Code: `.claude/mcp.json`（项目根目录）；Claude Desktop: 见上方路径 |
-| MCP 工具列表看不到 `search_wiki` | 服务器未启动或崩溃 | 检查 MCP 日志（Claude Code: `.claude/logs/`） |
+| 错误                        | 原因          | 排查                                                           |
+| ------------------------- | ----------- | ------------------------------------------------------------ |
+| server.js 路径错误            | `args` 路径写错 | 用绝对路径，不要用 `~` 或相对路径                                          |
+| `JSON` 格式错误               | 多了一个逗号或注释   | JSON 不支持尾随逗号和 `//` 注释。用 `jq` 或在线工具验证                         |
+| 配置不生效                     | 文件路径不对      | Claude Code: `.claude/mcp.json`（项目根目录）；Claude Desktop: 见上方路径 |
+| MCP 工具列表看不到 `search_wiki` | 服务器未启动或崩溃   | 检查 MCP 日志（Claude Code: `.claude/logs/`）                      |
 
 ### 2.3 环境变量常见问题
 
-| 错误信息 | 原因 | 解决 |
-|---------|------|------|
-| `EMBED_API_URL is not configured` | 未设置 `EMBED_API_URL` | 在 MCP 配置的 `env` 块中添加 |
-| `EMBED_API_KEY is not configured` | 未设置 `EMBED_API_KEY` | 同上 |
-| `Embedding API error 401` | API Key 无效 | 检查 Key 是否正确、是否过期 |
-| `Embedding API error 404` | URL 路径不对 | URL 应以 `/v1` 结尾（不含 `/embeddings`，代码会自动追加） |
-| `Embedding API network error` | 网络不通 | 检查防火墙/代理；`curl $EMBED_API_URL/models` 测试连通性 |
-| `Embedding API parse error` | API 返回非预期格式 | 确认 Embedding 服务兼容 OpenAI `/v1/embeddings` 格式 |
+| 错误信息                              | 原因                  | 解决                                           |
+| --------------------------------- | ------------------- | -------------------------------------------- |
+| `EMBED_API_URL is not configured` | 未设置 `EMBED_API_URL` | 在 MCP 配置的 `env` 块中添加                         |
+| `EMBED_API_KEY is not configured` | 未设置 `EMBED_API_KEY` | 同上                                           |
+| `Embedding API error 401`         | API Key 无效          | 检查 Key 是否正确、是否过期                             |
+| `Embedding API error 404`         | URL 路径不对            | URL 应以 `/v1` 结尾（不含 `/embeddings`，代码会自动追加）    |
+| `Embedding API network error`     | 网络不通                | 检查防火墙/代理；`curl $EMBED_API_URL/models` 测试连通性  |
+| `Embedding API parse error`       | API 返回非预期格式         | 确认 Embedding 服务兼容 OpenAI `/v1/embeddings` 格式 |
 
 ### 2.4 VAULT_ROOT 相关
 
-| 错误信息 | 原因 | 解决 |
-|---------|------|------|
-| 所有工具返回空结果 | `VAULT_ROOT` 指向不是 Obsidian vault 的目录 | 确认目标目录包含 `.obsidian/` 子目录 |
-| `File not found: wiki/xxx` | vault 中没有 `wiki/` 目录 | 确认 vault 是按 LLM-Wiki 模式组织的（有 `wiki/` 和 `index.md`） |
-| Windows 路径问题 | 反斜杠转义 | MCP JSON 中用 `D:/Obsidian/AI`（正斜杠）而非 `D:\Obsidian\AI` |
+| 错误信息                       | 原因                                   | 解决                                                   |
+| -------------------------- | ------------------------------------ | ---------------------------------------------------- |
+| 所有工具返回空结果                  | `VAULT_ROOT` 指向不是 Obsidian vault 的目录 | 确认目标目录包含 `.obsidian/` 子目录                            |
+| `File not found: wiki/xxx` | vault 中没有 `wiki/` 目录                 | 确认 vault 是按 LLM-Wiki 模式组织的（有 `wiki/` 和 `index.md`）   |
+| Windows 路径问题               | 反斜杠转义                                | MCP JSON 中用 `D:/Obsidian/AI`（正斜杠）而非 `D:\Obsidian\AI` |
 
 ---
 
@@ -179,12 +179,12 @@ npm config delete https-proxy
 → search_wiki { "query": "你的测试问题" }
 ```
 
-| 现象 | 排查 |
-|------|------|
-| 工具不在列表中 | 服务器未启动。检查 MCP 日志，确认 `server.js` 路径和 Node.js 可用 |
-| 返回 `{ "results": [], "sources": [], "count": 0 }` | 正常（没有匹配页面时），尝试其他关键词 |
-| 返回 error 消息 | 根据具体 error 对照上方 2.3 节 |
-| 响应慢（>5秒） | Embedding API 首次调用需加载模型，后续会快 |
+| 现象                                                | 排查                                                       |
+| ------------------------------------------------- | -------------------------------------------------------- |
+| 工具不在列表中                                           | 服务器未启动。检查 MCP 日志，确认 `server.js` 路径和 Node.js 可用           |
+| 返回 `{ "results": [], "sources": [], "count": 0 }` | 正常（没有匹配页面时），尝试其他关键词                                      |
+| 返回 error 消息                                       | 根据具体 error 对照上方 2.3 节                                    |
+| 响应慢（>5秒）                                          | Embedding API 首次调用需加载模型，后续会快 |
 
 #### 步骤 2：构建图
 
@@ -192,11 +192,11 @@ npm config delete https-proxy
 → build_wiki_graph {}
 ```
 
-| 现象 | 排查 |
-|------|------|
-| 返回 pages > 0 | 成功 |
+| 现象           | 排查                         |
+| ------------ | -------------------------- |
+| 返回 pages > 0 | 成功                         |
 | 返回 pages = 0 | vault 的 `wiki/` 目录无 .md 文件 |
-| 返回 error | vault 目录结构不匹配 |
+| 返回 error     | vault 目录结构不匹配              |
 
 #### 步骤 3：运行 Lint
 
@@ -204,10 +204,10 @@ npm config delete https-proxy
 → lint_full {}
 ```
 
-| 现象 | 排查 |
-|------|------|
+| 现象                     | 排查                     |
+| ---------------------- | ---------------------- |
 | `Page store not built` | 先运行 `build_page_store` |
-| `Graph not built` | 先运行 `build_wiki_graph` |
+| `Graph not built`      | 先运行 `build_wiki_graph` |
 
 #### 步骤 4：构建页面向量（需要 API）
 
@@ -215,11 +215,11 @@ npm config delete https-proxy
 → build_page_store {}
 ```
 
-| 现象 | 排查 |
-|------|------|
-| 成功返回 pages 数量 | Embedding API 正常工作 |
-| 慢（>30s） | 正常——每个 wiki 页面需要一次 API 调用 |
-| API error | 检查 2.3 节环境变量配置 |
+| 现象            | 排查                        |
+| ------------- | ------------------------- |
+| 成功返回 pages 数量 | Embedding API 正常工作        |
+| 慢（>30s）       | 正常——每个 wiki 页面需要一次 API 调用 |
+| API error     | 检查 2.3 节环境变量配置            |
 
 ### 3.2 验证是否正常工作
 
@@ -234,11 +234,11 @@ npm test
 
 ### 3.3 客户端无响应
 
-| 现象 | 排查 |
-|------|------|
-| 客户端没显示 MCP 工具 | 检查 MCP 客户端是否已重载配置（Claude Code 需 `/reload-mcp` 或重启） |
-| 工具调用后无返回 | 服务器可能因未捕获异常退出。检查客户端 MCP 日志 |
-| `Unknown tool: xxx` | 服务器版本不支持该工具。升级到最新版 |
+| 现象                  | 排查                                                 |
+| ------------------- | -------------------------------------------------- |
+| 客户端没显示 MCP 工具       | 检查 MCP 客户端是否已重载配置（Claude Code 需 `/reload-mcp` 或重启） |
+| 工具调用后无返回            | 服务器可能因未捕获异常退出。检查客户端 MCP 日志                         |
+| `Unknown tool: xxx` | 服务器版本不支持该工具。升级到最新版                                 |
 
 ---
 
@@ -250,10 +250,10 @@ npm test
 → query_pglite_status {}
 ```
 
-| 现象 | 排查 |
-|------|------|
-| `"available": false` | Obsidian 未运行或 YOLO 插件未加载 |
-| `"available": true, "source": "pglite_live"` | 成功 |
+| 现象                                           | 排查                       |
+| -------------------------------------------- | ------------------------ |
+| `"available": false`                         | Obsidian 未运行或 YOLO 插件未加载 |
+| `"available": true, "source": "pglite_live"` | 成功                       |
 
 ### 4.2 决策流程
 

@@ -70,6 +70,9 @@ LLM 遇到矛盾或不确定的信息时，不会自行判断，而是创建结�
 | `create_decision` | 创建带可选项的决策条目 |
 | `resolve_decision` | 选择选项以解决决策 |
 | `correct_decision` | 对已解决的决策添加修正 |
+| `update_pglite_embedding` | 创建/更新 YOLO PGlite 嵌入记录 |
+| `delete_pglite_embedding` | 从 YOLO PGlite 删除嵌入记录 |
+| `query_pglite_status` | 查询 YOLO PGlite 数据库状态与统计 |
 
 ### API 示例
 
@@ -220,12 +223,14 @@ server.js
 │   ├── lint.js        # 双引擎 Lint（向量 + 图拓扑）
 │   ├── graph.js       # 图拓扑工具（全量构建 + 增量更新）
 │   ├── store.js       # 页面向量存储管理
-│   └── decisions.js   # 决策日志增删改查
+│   ├── decisions.js   # 决策日志增删改查
+│   └── yolo-crud.js   # YOLO PGlite CRUD 操作
 └── lib/
-    ├── config.js      # VAULT_ROOT 解析
+    ├── config.js      # VAULT_ROOT 解析 + 文件遍历
     ├── embed.js       # Embedding API 客户端 + 余弦相似度
     ├── page-store.js  # 页面向量存储读写搜索
     ├── graph.js       # 图构建（wikilinks、sources、4-signal 权重）
+    ├── resolver.js    # Wikilink 解析
     ├── relevance.js   # 动态权重计算（hub 惩罚、稀缺奖励、叠加奖励）
     └── pglite.js      # YOLO PGlite 集成（实时 + 缓存回退）
 ```
@@ -246,6 +251,14 @@ server.js
 2. 用户在 Obsidian 中选择选项（`[ ]` → `[x]`）或通过对话选择
 3. `resolve_decision` — 将条目从待处理移至已解决
 4. `correct_decision` — 如果用户改变主意，添加修正块
+
+### 开发
+
+```bash
+npm test              # ESLint + 88 个单元测试
+npm run lint          # 仅 ESLint
+node --test           # 仅运行测试
+```
 
 ### 致谢
 
@@ -324,6 +337,9 @@ Supports single-page vector incremental updates (`update_page_store`), so editin
 | `create_decision` | Create a decision entry with selectable options |
 | `resolve_decision` | Resolve a decision by selecting an option |
 | `correct_decision` | Add a correction to a previously resolved decision |
+| `update_pglite_embedding` | Create or update an embedding record in YOLO's PGlite database |
+| `delete_pglite_embedding` | Delete embedding records from YOLO's PGlite database |
+| `query_pglite_status` | Query YOLO PGlite database status and statistics |
 
 ### API Examples
 
@@ -474,12 +490,14 @@ server.js
 │   ├── lint.js        # Dual-engine lint (vector + graph topology)
 │   ├── graph.js       # Graph topology tools (full build + incremental update)
 │   ├── store.js       # Page embedding store management
-│   └── decisions.js   # Decision log CRUD
+│   ├── decisions.js   # Decision log CRUD
+│   └── yolo-crud.js   # YOLO PGlite CRUD operations
 └── lib/
-    ├── config.js      # VAULT_ROOT resolution
+    ├── config.js      # VAULT_ROOT resolution + file traversal
     ├── embed.js       # Embedding API client + cosine similarity
     ├── page-store.js  # Page embedding store read/write/search
     ├── graph.js       # Graph construction (wikilinks, sources, 4-signal weights)
+    ├── resolver.js    # Wikilink resolution
     ├── relevance.js   # Dynamic weighting (hub penalty, rarity bonus, reinforcement)
     └── pglite.js      # YOLO PGlite integration (live + cache fallback)
 ```
@@ -500,6 +518,14 @@ When the LLM encounters conflicting or uncertain information during ingestion or
 2. User picks an option in Obsidian (`[ ]` → `[x]`) or via conversation
 3. `resolve_decision` — moves the entry from pending to resolved
 4. `correct_decision` — adds a correction block if the user changes their mind
+
+### Development
+
+```bash
+npm test              # ESLint + 88 unit tests
+npm run lint          # ESLint only
+node --test           # run tests only
+```
 
 ### Acknowledgments
 

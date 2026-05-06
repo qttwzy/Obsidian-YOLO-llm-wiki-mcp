@@ -1,8 +1,6 @@
 "use strict";
 
 const crypto = require("crypto");
-const path = require("path");
-const { VAULT_ROOT } = require("../lib/config");
 const { updateEmbedding, deleteEmbedding, queryPgliteStatus } = require("../lib/pglite");
 const { embedTexts } = require("../lib/embed");
 

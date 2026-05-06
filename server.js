@@ -15,7 +15,7 @@ const { listDecisions, createDecision, resolveDecision, correctDecision } = requ
 const { handleBuildGraph, handleUpdateGraph } = require("./tools/graph");
 const { handleUpdateEmbedding, handleDeleteEmbedding, handleQueryStatus } = require("./tools/yolo-crud");
 const { validateConfig } = require("./lib/embed");
-const { resolveVaultRoot, resolveVaultInfo, getVaultMap } = require("./lib/config");
+const { resolveVaultInfo } = require("./lib/config");
 
 function formatError(message) {
   return { content: [{ type: "text", text: JSON.stringify({ error: message }) }], isError: true };
@@ -418,6 +418,7 @@ async function main() {
 }
 
 main().catch((err) => {
+  // eslint-disable-next-line no-console
   console.error("Fatal:", err.message);
   process.exit(1);
 });

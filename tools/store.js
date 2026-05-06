@@ -1,6 +1,5 @@
 "use strict";
 
-const path = require("path");
 const { buildStore, updateEntry } = require("../lib/page-store");
 const { resolveVaultRoot, assertInsideVault } = require("../lib/config");
 

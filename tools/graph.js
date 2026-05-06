@@ -34,7 +34,7 @@ function handleBuildGraph(vaultRoot) {
  * @returns {object} Structural diff
  */
 function computeStructuralDiff(oldNode, absPath, wikiDir) {
-  const { type, title, sources, body, content } = parseFrontmatter(absPath, wikiDir);
+  const { type, title, sources, content } = parseFrontmatter(absPath, wikiDir);
   const newLinks = extractWikilinks(content);
 
   const oldOutLinks = new Set(oldNode.outLinks);

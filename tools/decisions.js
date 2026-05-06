@@ -217,7 +217,6 @@ function correctDecision({ id, originalDecision, correctionReason, options, vaul
   const dec = resolved.find((d) => d.id === id);
   if (!dec) return { error: `Resolved decision ${id} not found` };
 
-  const date = new Date().toISOString().slice(0, 10);
   const optionsBlock = options
     .map((o) => `- [ ] **${o.label}. ${o.action}** — ${o.consequence}`)
     .join("\n");

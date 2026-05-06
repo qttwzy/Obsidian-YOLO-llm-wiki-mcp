@@ -9,7 +9,8 @@
   },
   "scripts": {
     "start": "node server.js",
-    "test": "node --test tests/"
+    "lint": "eslint lib/ tools/ tests/ server.js",
+    "test": "npm run lint && node --test"
   },
   "keywords": [
     "mcp",
@@ -34,5 +35,10 @@
   "dependencies": {
     "@electric-sql/pglite": "^0.4.5",
     "@modelcontextprotocol/sdk": "^1.0.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.3.0",
+    "globals": "^17.6.0"
   }
 }

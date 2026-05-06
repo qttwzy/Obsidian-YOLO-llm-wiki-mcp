@@ -29,20 +29,20 @@ LLM 遇到矛盾或不确定的信息时，不会自行判断，而是创建结�
 优先通过 `obsidian eval` CLI 实时查询 Obsidian 中 YOLO 插件的 PGlite 向量库；Obsidian 未运行时自动回退到本地缓存的 PGlite 数据库，确保搜索始终可用。
 ![YOLO PGlite 双策略集成](docs/images/pglite-fallback.svg)
 
-#### 5. 零外部依赖
+#### 5. 轻量依赖
 
-仅依赖 `@modelcontextprotocol/sdk` 和 `@electric-sql/pglite`，Embedding API 客户端使用 Node.js 原生 `http`/`https` 模块实现，兼容任何 OpenAI 格式的 Embedding 端点。
+仅 2 个 npm 依赖（`@modelcontextprotocol/sdk` + `@electric-sql/pglite`），Embedding 客户端使用 Node.js 原生模块。运行时需 Obsidian + YOLO 插件提供 PGlite 向量库，Embedding API 提供向量计算。
 
 ```
 ┌─────────────────────────────────────────────────┐
 │              Obsidian-YOLO-llm-wiki-mcp          │
 ├─────────────────────────────────────────────────┤
-│  @modelcontextprotocol/sdk   (MCP 协议)         │
-│  @electric-sql/pglite        (向量数据库)       │
-│  Node.js http/https          (Embedding 客户端) │
-│  child_process (obsidian)    (Obsidian CLI)     │
+│  Obsidian + YOLO 插件       (PGlite 向量库)     │
+│  Embedding API              (向量计算)           │
+│  @modelcontextprotocol/sdk  (MCP 协议)          │
+│  @electric-sql/pglite       (缓存回退)           │
 ├─────────────────────────────────────────────────┤
-│  外部依赖 = 2    |    原生模块 = 2              │
+│  npm 依赖 = 2              |  服务依赖 = 2       │
 └─────────────────────────────────────────────────┘
 ```
 
@@ -316,20 +316,20 @@ When the LLM encounters conflicting or uncertain information, it doesn't guess �
 Primarily queries YOLO's PGlite vector database in real-time via the `obsidian eval` CLI when Obsidian is running; automatically falls back to a local cached PGlite database when Obsidian is unavailable, ensuring search always works.
 ![YOLO PGlite Dual-Strategy Integration](docs/images/pglite-fallback.svg)
 
-#### 5. Zero External Dependencies
+#### 5. Lightweight Dependencies
 
-Only depends on `@modelcontextprotocol/sdk` and `@electric-sql/pglite`. The Embedding API client is built with Node.js native `http`/`https` modules, compatible with any OpenAI-format embedding endpoint.
+Only 2 npm dependencies (`@modelcontextprotocol/sdk` + `@electric-sql/pglite`). Embedding client uses Node.js native modules. Requires Obsidian + YOLO plugin for PGlite vector DB and an external Embedding API.
 
 ```
 ┌─────────────────────────────────────────────────┐
 │              Obsidian-YOLO-llm-wiki-mcp          │
 ├─────────────────────────────────────────────────┤
-│  @modelcontextprotocol/sdk   (MCP Protocol)     │
-│  @electric-sql/pglite        (Vector Database)  │
-│  Node.js http/https          (Embedding Client) │
-│  child_process (obsidian)    (Obsidian CLI)     │
+│  Obsidian + YOLO plugin      (PGlite vector DB) │
+│  Embedding API               (vector compute)    │
+│  @modelcontextprotocol/sdk   (MCP protocol)     │
+│  @electric-sql/pglite        (cache fallback)    │
 ├─────────────────────────────────────────────────┤
-│  External deps = 2   |   Native modules = 2     │
+│  npm deps = 2               |  service deps = 2  │
 └─────────────────────────────────────────────────┘
 ```
 

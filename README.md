@@ -29,20 +29,19 @@ LLM 遇到矛盾或不确定的信息时，不会自行判断，而是创建结�
 优先通过 `obsidian eval` CLI 实时查询 Obsidian 中 YOLO 插件的 PGlite 向量库；Obsidian 未运行时自动回退到本地缓存的 PGlite 数据库，确保搜索始终可用。
 ![YOLO PGlite 双策略集成](docs/images/pglite-fallback.svg)
 
-#### 5. 轻量依赖
+#### 5. 零外部依赖
 
-仅 2 个 npm 依赖（`@modelcontextprotocol/sdk` + `@electric-sql/pglite`），Embedding 客户端使用 Node.js 原生模块。运行时需 Obsidian + YOLO 插件提供 PGlite 向量库，Embedding API 提供向量计算。
+仅 2 个 npm 依赖（`@modelcontextprotocol/sdk` + `@electric-sql/pglite`）。Embedding 完全由 YOLO 插件提供，不引入任何外部 API 依赖——没有 OpenAI，没有 Qwen API，没有第三方向量计算服务。Obsidian + YOLO 就是全部运行时需求。
 
 ```
 ┌─────────────────────────────────────────────────┐
 │              Obsidian-YOLO-llm-wiki-mcp          │
 ├─────────────────────────────────────────────────┤
-│  Obsidian + YOLO 插件       (PGlite 向量库)     │
-│  Embedding API              (向量计算)           │
+│  Obsidian + YOLO 插件       (Embedding + 向量库) │
 │  @modelcontextprotocol/sdk  (MCP 协议)          │
 │  @electric-sql/pglite       (缓存回退)           │
 ├─────────────────────────────────────────────────┤
-│  npm 依赖 = 2              |  服务依赖 = 2       │
+│  npm 依赖 = 2              |  外部服务依赖 = 0    │
 └─────────────────────────────────────────────────┘
 ```
 
@@ -53,100 +52,26 @@ LLM 遇到矛盾或不确定的信息时，不会自行判断，而是创建结�
 
 ### 功能特性
 
-| 工具                        | 说明                                                  |
-| ------------------------- | --------------------------------------------------- |
-| `search_wiki`             | 三通道并行搜索（grep、页面向量、PGlite 分块）                        |
-| `lint_full`               | 双引擎 Lint：向量语义 + 图拓扑分析，输出四类候选对和结构洞见                  |
-| `build_wiki_graph`        | 构建/重建知识图谱（纯文件 IO，零 API 成本）                          |
-| `update_wiki_graph`       | 编辑页面后增量更新图数据（先 diff 分析，再确认语义变化）                     |
-| `mark_skipped_connection` | 标记误报的检查结果以忽略                                        |
-| `build_page_store`        | 构建/重建页面向量索引                                         |
-| `update_page_store`       | 编辑后更新单个页面的向量                                        |
-| `list_decisions`          | 列出待处理和已解决的决策                                        |
-| `create_decision`         | 创建带可选项的决策条目                                         |
-| `resolve_decision`        | 选择选项以解决决策                                           |
-| `correct_decision`        | 对已解决的决策添加修正                                         |
-| `update_pglite_embedding` | 创建/更新 YOLO PGlite 嵌入记录                              |
-| `delete_pglite_embedding` | 从 YOLO PGlite 删除嵌入记录                                |
-| `query_pglite_status`     | 查询 YOLO PGlite 数据库状态与统计 |
-| `init_wiki` | 初始化 LLM-Wiki 骨架（含 Karpathy 设计模式原文） |
-| `set_inbox_folders` | 配置收件箱目录（set/add/remove/list） |
-| `discover_sources` | 扫描收件箱中未处理的新文件 |
-| `ingest_source` | 录入源文件：建页面 → 更新索引 → 写日志 → 归档 |
-
-### API 示例
-
-JSON 请求/响应格式。完整 Schema 见各工具的 `inputSchema`。
-
-#### 搜索
-
-```json
-// → search_wiki
-{ "query": "如何配置 Embedding 模型" }
-
-// ← { "results": [{ "path": "wiki/...", "score": 0.92, "slug": "...", "title": "..." }],
-//      "sources": ["page_store", "grep"], "count": 5, "_vault": "AI" }
-```
-
-#### 图与检查
-
-```json
-// → build_wiki_graph
-{}
-
-// → lint_full
-{ "top": 10, "minVectorScore": 0.6, "minGraphScore": 1.5 }
-
-// ← { "cross_signal": [...], "semantic_only": [...], "structural_only": [...],
-//      "structural_insights": [...], "summary": { "total_candidates": 15, ... } }
-```
-
-#### 页面向量
-
-```json
-// → build_page_store
-{}
-
-// → update_page_store
-{ "filePath": "wiki/entities/Claude Code.md" }
-```
-
-#### 决策
-
-```json
-// → create_decision
-{ "situation": "两个来源对 API 端点有不同描述",
-  "options": [{ "label": "A", "action": "采用来源1", "consequence": "..." },
-              { "label": "B", "action": "采用来源2", "consequence": "..." }] }
-
-// → resolve_decision
-{ "id": "DEC-001", "option": "A" }
-```
-
-#### YOLO PGlite CRUD
-
-```json
-// → query_pglite_status
-{}
-```
-
-#### LLM-Wiki 工作流
-
-```json
-// → init_wiki
-{}
-
-// → set_inbox_folders
-{ "action": "set", "paths": ["Clippings", "技巧"] }
-
-// → discover_sources
-{}
-// ← { "newFiles": [{ "path": "Clippings/文章.md", "inbox": "Clippings", ... }], "totalNew": 1 }
-
-// → ingest_source
-{ "sourceFile": "Clippings/文章.md", "inbox": "Clippings", "type": "entity",
-  "title": "新实体", "content": "# 新实体\n\n...", "summary": "一句话摘要" }
-```
+| 工具                        | 说明                                                     |
+| ------------------------- | ------------------------------------------------------ |
+| `init_wiki`               | 初始化 LLM-Wiki 骨架（含 Karpathy 设计模式原文）                     |
+| `set_inbox_folders`       | 配置收件箱目录（set/add/remove/list）                           |
+| `build_page_store`        | 构建/重建页面向量索引                                            |
+| `build_wiki_graph`        | 构建/重建知识图谱（纯文件 IO，零 API 成本） |
+| `discover_sources`        | 扫描收件箱中未处理的新文件                                          |
+| `ingest_source`           | 录入源文件：建页面 → 更新索引 → 写日志 → 归档                            |
+| `update_page_store`       | 编辑后更新单个页面的向量                                           |
+| `update_wiki_graph`       | 编辑页面后增量更新图数据（先 diff 分析，再确认语义变化）                        |
+| `update_pglite_embedding` | 创建/更新 YOLO PGlite 嵌入记录                                 |
+| `search_wiki`             | 三通道并行搜索（grep、页面向量、PGlite 分块）                           |
+| `lint_full`               | 双引擎 Lint：向量语义 + 图拓扑分析，输出四类候选对和结构洞见                     |
+| `mark_skipped_connection` | 标记误报的检查结果以忽略                                           |
+| `list_decisions`          | 列出待处理和已解决的决策                                           |
+| `create_decision`         | 创建带可选项的决策条目                                            |
+| `resolve_decision`        | 选择选项以解决决策                                              |
+| `correct_decision`        | 对已解决的决策添加修正                                            |
+| `delete_pglite_embedding` | 从 YOLO PGlite 删除嵌入记录                                   |
+| `query_pglite_status`     | 查询 YOLO PGlite 数据库状态与统计                                |
 
 ### 安装
 
@@ -162,12 +87,35 @@ npm install
 
 设置环境变量：
 
-| 变量              | 必需  | 说明                                          |
-| --------------- | --- | ------------------------------------------- |
-| `VAULT_ROOT`    | 否   | Obsidian 知识库的绝对路径，默认为包的 `../../` 相对路径       |
-| `EMBED_API_URL` | 是   | Embedding API 端点（兼容 OpenAI 格式）              |
-| `EMBED_API_KEY` | 是   | Embedding API 密钥                            |
-| `EMBED_MODEL`   | 否   | Embedding 模型名称，默认 `Qwen/Qwen3-Embedding-8B` |
+| 变量           | 必需  | 说明                                    |
+| ------------ | --- | ------------------------------------- |
+| `VAULT_ROOT` | 否   | Obsidian 知识库的绝对路径，默认为包的 `../../` 相对路径 |
+
+> **无需外部 API 密钥。** Embedding 由 YOLO 插件在 Obsidian 内部计算。
+
+#### YOLO 插件
+
+YOLO 内置 MCP 客户端，可在插件设置中直接添加此服务器，无需编辑 JSON 文件：
+
+1. 打开 Obsidian 设置 → **YOLO** → **Custom tools (MCP)**
+2. 点击 **Add custom tool server (MCP)**
+3. 填写 **Name**（如 `llm-wiki`）
+4. 在 **Parameters** 中输入以下 JSON：
+
+```json
+{
+  "transport": "stdio",
+  "command": "node",
+  "args": ["/path/to/Obsidian-YOLO-llm-wiki-mcp/server.js"],
+  "env": {
+    "VAULT_ROOT": "/path/to/your/obsidian/vault"
+  }
+}
+```
+
+5. 点击 **Save**，服务器自动连接
+
+> `args` 和 `env` 中的路径请替换为你实际的 vault 和 mcp 目录路径。
 
 #### Claude Code / Cursor / Windsurf
 
@@ -180,10 +128,7 @@ npm install
       "command": "node",
       "args": ["/path/to/Obsidian-YOLO-llm-wiki-mcp/server.js"],
       "env": {
-        "VAULT_ROOT": "/path/to/your/obsidian/vault",
-        "EMBED_API_URL": "https://api.example.com/v1",
-        "EMBED_API_KEY": "sk-xxx",
-        "EMBED_MODEL": "Qwen/Qwen3-Embedding-8B"
+        "VAULT_ROOT": "/path/to/your/obsidian/vault"
       }
     }
   }
@@ -201,9 +146,7 @@ npm install
       "command": "node",
       "args": ["/path/to/Obsidian-YOLO-llm-wiki-mcp/server.js"],
       "env": {
-        "VAULT_ROOT": "/path/to/your/obsidian/vault",
-        "EMBED_API_URL": "https://api.example.com/v1",
-        "EMBED_API_KEY": "sk-xxx"
+        "VAULT_ROOT": "/path/to/your/obsidian/vault"
       }
     }
   }
@@ -229,7 +172,7 @@ your-vault/
     └── last_lint.json          # 最近一次 Lint 时间戳
 ```
 
-页面 frontmatter 应包含 `type`、`status`、`claim_type`、`sources` 等字段。完整规范见 `schema/llm-wiki-schema.md`。
+页面 frontmatter 应包含 `type`、`status`、`sources` 等字段。完整规范见 `schema/llm-wiki-schema.md`。
 
 ### 架构
 
@@ -284,6 +227,7 @@ node --test           # 仅运行测试
 
 - [Karpathy's llm-wiki.md](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f) — 本项目遵循的 LLM-Wiki 设计模式
 - [nashsu/llm_wiki](https://github.com/nashsu/llm_wiki) — 同样基于 Karpathy 模式的桌面应用实现（Tauri + React），其 4-Signal 相关性模型和知识图谱设计对本项目有启发
+- [YOLO](https://github.com/Lapis0x0/obsidian-yolo) — Agent 原生 AI 助手，为本项目提供 Embedding 计算和 PGlite 向量库
 
 ### 许可证
 
@@ -316,20 +260,19 @@ When the LLM encounters conflicting or uncertain information, it doesn't guess �
 Primarily queries YOLO's PGlite vector database in real-time via the `obsidian eval` CLI when Obsidian is running; automatically falls back to a local cached PGlite database when Obsidian is unavailable, ensuring search always works.
 ![YOLO PGlite Dual-Strategy Integration](docs/images/pglite-fallback.svg)
 
-#### 5. Lightweight Dependencies
+#### 5. Zero External Dependencies
 
-Only 2 npm dependencies (`@modelcontextprotocol/sdk` + `@electric-sql/pglite`). Embedding client uses Node.js native modules. Requires Obsidian + YOLO plugin for PGlite vector DB and an external Embedding API.
+Only 2 npm dependencies (`@modelcontextprotocol/sdk` + `@electric-sql/pglite`). Embedding is entirely handled by the YOLO plugin — no external API: no OpenAI, no Qwen API, no third-party vector computation service. Obsidian + YOLO is all you need at runtime.
 
 ```
 ┌─────────────────────────────────────────────────┐
 │              Obsidian-YOLO-llm-wiki-mcp          │
 ├─────────────────────────────────────────────────┤
-│  Obsidian + YOLO plugin      (PGlite vector DB) │
-│  Embedding API               (vector compute)    │
+│  Obsidian + YOLO plugin      (Embedding + VDB)   │
 │  @modelcontextprotocol/sdk   (MCP protocol)     │
 │  @electric-sql/pglite        (cache fallback)    │
 ├─────────────────────────────────────────────────┤
-│  npm deps = 2               |  service deps = 2  │
+│  npm deps = 2               |  external deps = 0  │
 └─────────────────────────────────────────────────┘
 ```
 
@@ -342,98 +285,24 @@ Supports single-page vector incremental updates (`update_page_store`), so editin
 
 | Tool                      | Description                                                                                     |
 | ------------------------- | ----------------------------------------------------------------------------------------------- |
+| `init_wiki`               | Initialize LLM-Wiki skeleton (includes Karpathy design pattern article)                         |
+| `set_inbox_folders`       | Configure inbox directories (set/add/remove/list)                                               |
+| `build_page_store`        | Build/rebuild the page embedding index                                                          |
+| `build_wiki_graph`        | Build/rebuild knowledge graph (pure file IO, zero API cost)                                     |
+| `discover_sources`        | Scan inbox folders for unprocessed files                                                        |
+| `ingest_source`           | Ingest source: create page → update index → log → archive                                       |
+| `update_page_store`       | Update a single page's embedding after editing                                                  |
+| `update_wiki_graph`       | Incremental graph update after editing (diff analysis + semantic change confirmation)           |
+| `update_pglite_embedding` | Create or update an embedding record in YOLO's PGlite database                                  |
 | `search_wiki`             | Three-channel parallel search (grep, page embeddings, PGlite chunks)                            |
 | `lint_full`               | Dual-engine lint: vector cosine similarity + graph topology, 4 categories + structural insights |
-| `build_wiki_graph`        | Build/rebuild knowledge graph (pure file IO, zero API cost)                                     |
-| `update_wiki_graph`       | Incremental graph update after editing (diff analysis + semantic change confirmation)           |
 | `mark_skipped_connection` | Mark false-positive lint results to ignore them                                                 |
-| `build_page_store`        | Build/rebuild the page embedding index                                                          |
-| `update_page_store`       | Update a single page's embedding after editing                                                  |
 | `list_decisions`          | List pending and resolved decisions                                                             |
 | `create_decision`         | Create a decision entry with selectable options                                                 |
 | `resolve_decision`        | Resolve a decision by selecting an option                                                       |
 | `correct_decision`        | Add a correction to a previously resolved decision                                              |
-| `update_pglite_embedding` | Create or update an embedding record in YOLO's PGlite database                                  |
 | `delete_pglite_embedding` | Delete embedding records from YOLO's PGlite database                                            |
 | `query_pglite_status`     | Query YOLO PGlite database status and statistics                                                |
-| `init_wiki` | Initialize LLM-Wiki skeleton (includes Karpathy design pattern article) |
-| `set_inbox_folders` | Configure inbox directories (set/add/remove/list) |
-| `discover_sources` | Scan inbox folders for unprocessed files |
-| `ingest_source` | Ingest source: create page → update index → log → archive |
-
-### API Examples
-
-JSON request/response format. See tool `inputSchema` for full specifications.
-
-#### Search
-
-```json
-// → search_wiki
-{ "query": "how to configure embedding model" }
-
-// ← { "results": [{ "path": "wiki/...", "score": 0.92, "slug": "...", "title": "..." }],
-//      "sources": ["page_store", "grep"], "count": 5, "_vault": "AI" }
-```
-
-#### Graph & Lint
-
-```json
-// → build_wiki_graph
-{}
-
-// → lint_full
-{ "top": 10, "minVectorScore": 0.6, "minGraphScore": 1.5 }
-
-// ← { "cross_signal": [...], "semantic_only": [...], "structural_only": [...],
-//      "structural_insights": [...], "summary": { "total_candidates": 15, ... } }
-```
-
-#### Page Store
-
-```json
-// → build_page_store
-{}
-
-// → update_page_store
-{ "filePath": "wiki/entities/Claude Code.md" }
-```
-
-#### Decisions
-
-```json
-// → create_decision
-{ "situation": "Two sources describe the API endpoint differently",
-  "options": [{ "label": "A", "action": "Use source 1", "consequence": "..." },
-              { "label": "B", "action": "Use source 2", "consequence": "..." }] }
-
-// → resolve_decision
-{ "id": "DEC-001", "option": "A" }
-```
-
-#### YOLO PGlite CRUD
-
-```json
-// → query_pglite_status
-{}
-```
-
-#### LLM-Wiki Workflow
-
-```json
-// → init_wiki
-{}
-
-// → set_inbox_folders
-{ "action": "set", "paths": ["Clippings", "Tutorials"] }
-
-// → discover_sources
-{}
-// ← { "newFiles": [{ "path": "Clippings/article.md", "inbox": "Clippings", ... }], "totalNew": 1 }
-
-// → ingest_source
-{ "sourceFile": "Clippings/article.md", "inbox": "Clippings", "type": "entity",
-  "title": "New Entity", "content": "# New Entity\n\n...", "summary": "One-line summary" }
-```
 
 ### Install
 
@@ -449,12 +318,35 @@ npm install
 
 Set environment variables:
 
-| Variable        | Required | Description                                                                         |
-| --------------- | -------- | ----------------------------------------------------------------------------------- |
-| `VAULT_ROOT`    | No       | Absolute path to your Obsidian vault. Defaults to `../../` relative to the package. |
-| `EMBED_API_URL` | Yes      | Embedding API endpoint (OpenAI-compatible)                                          |
-| `EMBED_API_KEY` | Yes      | Embedding API key                                                                   |
-| `EMBED_MODEL`   | No       | Embedding model name. Default: `Qwen/Qwen3-Embedding-8B`                            |
+| Variable     | Required | Description                                                                         |
+| ------------ | -------- | ----------------------------------------------------------------------------------- |
+| `VAULT_ROOT` | No       | Absolute path to your Obsidian vault. Defaults to `../../` relative to the package. |
+
+> **No external API keys needed.** Embedding is computed by the YOLO plugin inside Obsidian.
+
+#### YOLO Plugin
+
+YOLO has a built-in MCP client. Add this server directly in the plugin settings — no JSON file editing needed:
+
+1. Open Obsidian Settings → **YOLO** → **Custom tools (MCP)**
+2. Click **Add custom tool server (MCP)**
+3. Enter the **Name** (e.g. `llm-wiki`)
+4. Paste the following JSON into **Parameters**:
+
+```json
+{
+  "transport": "stdio",
+  "command": "node",
+  "args": ["/path/to/Obsidian-YOLO-llm-wiki-mcp/server.js"],
+  "env": {
+    "VAULT_ROOT": "/path/to/your/obsidian/vault"
+  }
+}
+```
+
+5. Click **Save** — the server connects automatically
+
+> Adjust paths in `args` and `env` to match your actual vault and mcp directories.
 
 #### Claude Code / Cursor / Windsurf
 
@@ -467,10 +359,7 @@ Add to your MCP config (e.g. `.claude/mcp.json`):
       "command": "node",
       "args": ["/path/to/Obsidian-YOLO-llm-wiki-mcp/server.js"],
       "env": {
-        "VAULT_ROOT": "/path/to/your/obsidian/vault",
-        "EMBED_API_URL": "https://api.example.com/v1",
-        "EMBED_API_KEY": "sk-xxx",
-        "EMBED_MODEL": "Qwen/Qwen3-Embedding-8B"
+        "VAULT_ROOT": "/path/to/your/obsidian/vault"
       }
     }
   }
@@ -488,9 +377,7 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
       "command": "node",
       "args": ["/path/to/Obsidian-YOLO-llm-wiki-mcp/server.js"],
       "env": {
-        "VAULT_ROOT": "/path/to/your/obsidian/vault",
-        "EMBED_API_URL": "https://api.example.com/v1",
-        "EMBED_API_KEY": "sk-xxx"
+        "VAULT_ROOT": "/path/to/your/obsidian/vault"
       }
     }
   }
@@ -516,7 +403,7 @@ your-vault/
     └── last_lint.json          # Last lint timestamp
 ```
 
-Page frontmatter should include `type`, `status`, `claim_type`, `sources`, etc. See `schema/llm-wiki-schema.md` for the full specification.
+Page frontmatter should include `type`, `status`, `sources`, etc. See `schema/llm-wiki-schema.md` for the full specification.
 
 ### Architecture
 
@@ -571,6 +458,7 @@ node --test           # run tests only
 
 - [Karpathy's llm-wiki.md](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f) — the LLM-Wiki design pattern this project follows
 - [nashsu/llm_wiki](https://github.com/nashsu/llm_wiki) — a desktop implementation (Tauri + React) of the same Karpathy pattern; its 4-Signal relevance model and knowledge graph design inspired parts of this project
+- [YOLO](https://github.com/Lapis0x0/obsidian-yolo) — Agent-native AI assistant, provides embedding computation and PGlite vector database for this project
 
 ### License
 

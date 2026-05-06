@@ -14,6 +14,9 @@ const { handleBuildStore, handleUpdateStore } = require("./tools/store");
 const { listDecisions, createDecision, resolveDecision, correctDecision } = require("./tools/decisions");
 const { handleBuildGraph, handleUpdateGraph } = require("./tools/graph");
 const { handleUpdateEmbedding, handleDeleteEmbedding, handleQueryStatus } = require("./tools/yolo-crud");
+const { initWiki } = require("./tools/init-wiki");
+const { handleSetInboxFolders, discoverSources } = require("./tools/discover");
+const { ingestSource } = require("./tools/ingest");
 const { validateConfig } = require("./lib/embed");
 const { resolveVaultInfo } = require("./lib/config");
 
@@ -255,6 +258,56 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         },
       },
     },
+    {
+      name: "init_wiki",
+      description: "Initialize a vault with the LLM-Wiki skeleton structure. Creates wiki/, index.md, log.md, templates, and embeds Karpathy's design pattern article. Idempotent — safe to run on an already-initialized vault.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          vault: vaultParam,
+        },
+      },
+    },
+    {
+      name: "set_inbox_folders",
+      description: "Configure which directories to scan for new sources. Actions: set (overwrite), add (append), remove, list.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          action: { type: "string", enum: ["set", "add", "remove", "list"], description: "set=overwrite, add=append, remove=delete, list=show current" },
+          paths: { type: "array", items: { type: "string" }, description: "Folder paths relative to vault root (required for set/add/remove)" },
+          vault: vaultParam,
+        },
+        required: ["action"],
+      },
+    },
+    {
+      name: "discover_sources",
+      description: "Scan configured inbox folders for new, unprocessed files. Compares against raw/ archive to skip already-ingested sources.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          vault: vaultParam,
+        },
+      },
+    },
+    {
+      name: "ingest_source",
+      description: "Ingest a source file into the wiki: create wiki page → update index.md → append log.md → archive to raw/. Atomic four-step operation.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          sourceFile: { type: "string", description: "Source file path relative to vault root (e.g. 'Clippings/article.md')" },
+          inbox: { type: "string", description: "Inbox folder name (e.g. 'Clippings')" },
+          type: { type: "string", enum: ["entity", "concept", "synthesis"], description: "Wiki page type" },
+          title: { type: "string", description: "Page title" },
+          content: { type: "string", description: "Full page content (Markdown, optionally with frontmatter)" },
+          summary: { type: "string", description: "One-line summary for the index" },
+          vault: vaultParam,
+        },
+        required: ["sourceFile", "inbox", "type", "title", "content", "summary"],
+      },
+    },
   ],
 }));
 
@@ -352,6 +405,36 @@ server.setRequestHandler(CallToolRequestSchema, safeHandler(async (request) => {
     case "query_pglite_status": {
       const { vaultName } = resolveVaultInfo(args.vault);
       const result = handleQueryStatus(args);
+      return formatResult(result, vaultName);
+    }
+
+    case "init_wiki": {
+      const { vaultRoot, vaultName } = resolveVaultInfo(args.vault);
+      const result = initWiki(vaultRoot);
+      return formatResult(result, vaultName);
+    }
+
+    case "set_inbox_folders": {
+      if (!args.action) {
+        return formatError("set_inbox_folders requires an action (set, add, remove, list)");
+      }
+      const { vaultName } = resolveVaultInfo(args.vault);
+      const result = handleSetInboxFolders(args);
+      return formatResult(result, vaultName);
+    }
+
+    case "discover_sources": {
+      const { vaultRoot, vaultName } = resolveVaultInfo(args.vault);
+      const result = discoverSources(vaultRoot);
+      return formatResult(result, vaultName);
+    }
+
+    case "ingest_source": {
+      if (!args.sourceFile || !args.inbox || !args.type || !args.title || !args.content || !args.summary) {
+        return formatError("ingest_source requires sourceFile, inbox, type, title, content, and summary");
+      }
+      const { vaultName } = resolveVaultInfo(args.vault);
+      const result = ingestSource(args);
       return formatResult(result, vaultName);
     }
 

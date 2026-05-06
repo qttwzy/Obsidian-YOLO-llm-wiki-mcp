@@ -53,22 +53,26 @@ LLM 遇到矛盾或不确定的信息时，不会自行判断，而是创建结�
 
 ### 功能特性
 
-| 工具                        | 说明                                 |
-| ------------------------- | ---------------------------------- |
-| `search_wiki`             | 三通道并行搜索（grep、页面向量、PGlite 分块）       |
-| `lint_full`               | 双引擎 Lint：向量语义 + 图拓扑分析，输出四类候选对和结构洞见 |
-| `build_wiki_graph`        | 构建/重建知识图谱（纯文件 IO，零 API 成本）         |
-| `update_wiki_graph`       | 编辑页面后增量更新图数据（先 diff 分析，再确认语义变化）    |
-| `mark_skipped_connection` | 标记误报的检查结果以忽略                       |
-| `build_page_store`        | 构建/重建页面向量索引                        |
-| `update_page_store`       | 编辑后更新单个页面的向量                       |
-| `list_decisions`          | 列出待处理和已解决的决策                       |
-| `create_decision`         | 创建带可选项的决策条目                        |
-| `resolve_decision`        | 选择选项以解决决策                          |
-| `correct_decision`        | 对已解决的决策添加修正                        |
-| `update_pglite_embedding` | 创建/更新 YOLO PGlite 嵌入记录             |
-| `delete_pglite_embedding` | 从 YOLO PGlite 删除嵌入记录               |
-| `query_pglite_status`     | 查询 YOLO PGlite 数据库状态与统计            |
+| 工具                        | 说明                                                  |
+| ------------------------- | --------------------------------------------------- |
+| `search_wiki`             | 三通道并行搜索（grep、页面向量、PGlite 分块）                        |
+| `lint_full`               | 双引擎 Lint：向量语义 + 图拓扑分析，输出四类候选对和结构洞见                  |
+| `build_wiki_graph`        | 构建/重建知识图谱（纯文件 IO，零 API 成本）                          |
+| `update_wiki_graph`       | 编辑页面后增量更新图数据（先 diff 分析，再确认语义变化）                     |
+| `mark_skipped_connection` | 标记误报的检查结果以忽略                                        |
+| `build_page_store`        | 构建/重建页面向量索引                                         |
+| `update_page_store`       | 编辑后更新单个页面的向量                                        |
+| `list_decisions`          | 列出待处理和已解决的决策                                        |
+| `create_decision`         | 创建带可选项的决策条目                                         |
+| `resolve_decision`        | 选择选项以解决决策                                           |
+| `correct_decision`        | 对已解决的决策添加修正                                         |
+| `update_pglite_embedding` | 创建/更新 YOLO PGlite 嵌入记录                              |
+| `delete_pglite_embedding` | 从 YOLO PGlite 删除嵌入记录                                |
+| `query_pglite_status`     | 查询 YOLO PGlite 数据库状态与统计 |
+| `init_wiki` | 初始化 LLM-Wiki 骨架（含 Karpathy 设计模式原文） |
+| `set_inbox_folders` | 配置收件箱目录（set/add/remove/list） |
+| `discover_sources` | 扫描收件箱中未处理的新文件 |
+| `ingest_source` | 录入源文件：建页面 → 更新索引 → 写日志 → 归档 |
 
 ### API 示例
 
@@ -124,9 +128,24 @@ JSON 请求/响应格式。完整 Schema 见各工具的 `inputSchema`。
 ```json
 // → query_pglite_status
 {}
+```
 
-// → update_pglite_embedding
-{ "path": "wiki/entities/Foo.md", "content": "页面完整 Markdown 内容" }
+#### LLM-Wiki 工作流
+
+```json
+// → init_wiki
+{}
+
+// → set_inbox_folders
+{ "action": "set", "paths": ["Clippings", "技巧"] }
+
+// → discover_sources
+{}
+// ← { "newFiles": [{ "path": "Clippings/文章.md", "inbox": "Clippings", ... }], "totalNew": 1 }
+
+// → ingest_source
+{ "sourceFile": "Clippings/文章.md", "inbox": "Clippings", "type": "entity",
+  "title": "新实体", "content": "# 新实体\n\n...", "summary": "一句话摘要" }
 ```
 
 ### 安装
@@ -222,7 +241,10 @@ server.js
 │   ├── graph.js       # 图拓扑工具（全量构建 + 增量更新）
 │   ├── store.js       # 页面向量存储管理
 │   ├── decisions.js   # 决策日志增删改查
-│   └── yolo-crud.js   # YOLO PGlite CRUD 操作
+│   ├── yolo-crud.js   # YOLO PGlite CRUD 操作
+│   ├── init-wiki.js   # LLM-Wiki 骨架初始化
+│   ├── discover.js    # 收件箱扫描与配置
+│   └── ingest.js      # 源文件录入
 └── lib/
     ├── config.js      # VAULT_ROOT 解析 + 文件遍历
     ├── embed.js       # Embedding API 客户端 + 余弦相似度
@@ -253,7 +275,7 @@ server.js
 ### 开发
 
 ```bash
-npm test              # ESLint + 88 个单元测试
+npm test              # ESLint + 98 个单元测试
 npm run lint          # 仅 ESLint
 node --test           # 仅运行测试
 ```
@@ -334,6 +356,10 @@ Supports single-page vector incremental updates (`update_page_store`), so editin
 | `update_pglite_embedding` | Create or update an embedding record in YOLO's PGlite database                                  |
 | `delete_pglite_embedding` | Delete embedding records from YOLO's PGlite database                                            |
 | `query_pglite_status`     | Query YOLO PGlite database status and statistics                                                |
+| `init_wiki` | Initialize LLM-Wiki skeleton (includes Karpathy design pattern article) |
+| `set_inbox_folders` | Configure inbox directories (set/add/remove/list) |
+| `discover_sources` | Scan inbox folders for unprocessed files |
+| `ingest_source` | Ingest source: create page → update index → log → archive |
 
 ### API Examples
 
@@ -389,9 +415,24 @@ JSON request/response format. See tool `inputSchema` for full specifications.
 ```json
 // → query_pglite_status
 {}
+```
 
-// → update_pglite_embedding
-{ "path": "wiki/entities/Foo.md", "content": "Full page markdown content" }
+#### LLM-Wiki Workflow
+
+```json
+// → init_wiki
+{}
+
+// → set_inbox_folders
+{ "action": "set", "paths": ["Clippings", "Tutorials"] }
+
+// → discover_sources
+{}
+// ← { "newFiles": [{ "path": "Clippings/article.md", "inbox": "Clippings", ... }], "totalNew": 1 }
+
+// → ingest_source
+{ "sourceFile": "Clippings/article.md", "inbox": "Clippings", "type": "entity",
+  "title": "New Entity", "content": "# New Entity\n\n...", "summary": "One-line summary" }
 ```
 
 ### Install
@@ -487,7 +528,10 @@ server.js
 │   ├── graph.js       # Graph topology tools (full build + incremental update)
 │   ├── store.js       # Page embedding store management
 │   ├── decisions.js   # Decision log CRUD
-│   └── yolo-crud.js   # YOLO PGlite CRUD operations
+│   ├── yolo-crud.js   # YOLO PGlite CRUD operations
+│   ├── init-wiki.js   # LLM-Wiki skeleton initialization
+│   ├── discover.js    # Inbox scanning and config
+│   └── ingest.js      # Source file ingestion
 └── lib/
     ├── config.js      # VAULT_ROOT resolution + file traversal
     ├── embed.js       # Embedding API client + cosine similarity
@@ -518,7 +562,7 @@ When the LLM encounters conflicting or uncertain information during ingestion or
 ### Development
 
 ```bash
-npm test              # ESLint + 88 unit tests
+npm test              # ESLint + 98 unit tests
 npm run lint          # ESLint only
 node --test           # run tests only
 ```

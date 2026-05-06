@@ -129,7 +129,7 @@ function handleUpdateGraph({ filePath, semanticChange, vaultRoot }) {
       semanticChange: false,
       status: "no_update",
       reason: "semanticChange is false",
-      _hint: "链接已更，建议 update_pglite_embedding 刷新该页的 PGlite 向量嵌入。",
+      _hint: "链接已更新，建议 update_pglite_embedding 刷新该页的 PGlite 向量嵌入。",
     };
     appendChangelog({ file: slug, semanticChange: false, changes: diff.outLinks }, root);
     return report;

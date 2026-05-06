@@ -93,4 +93,15 @@ The MCP server provides full CRUD operations for YOLO's PGlite embeddings databa
 Safety mechanisms:
 - Checks YOLO indexing status before write operations
 - Tags metadata with `source: "mcp"` for audit trail
+
+## LLM-Wiki Workflow Tools
+
+| Tool | Description | Parameters |
+|------|-------------|------------|
+| `init_wiki` | Initialize vault skeleton | `vault?` |
+| `set_inbox_folders` | Configure inbox directories | `action`, `paths?`, `vault?` |
+| `discover_sources` | Scan inbox for new files | `vault?` |
+| `ingest_source` | Ingest source into wiki | `sourceFile`, `inbox`, `type`, `title`, `content`, `summary`, `vault?` |
+
+Complete LLM-Wiki workflow: Init → Set Inbox → Discover → Ingest → Query → Lint
 - Coordinates delete+insert to prevent duplicate records

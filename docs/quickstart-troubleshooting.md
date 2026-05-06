@@ -48,7 +48,7 @@ where obsidian        # Windows
 # 应返回 obsidian 可执行文件路径
 ```
 
-> **注意**：PGlite 相关工具（`query_pglite_status`、`update_pglite_embedding`）需要 Obsidian 运行中 + YOLO 插件已加载。搜索和 Lint 不依赖 Obsidian。
+> **注意**：PGlite 相关工具（`query_pglite_status`、`update_pglite_embedding`）和 Embedding 相关工具（`build_page_store`、`search_wiki` 语义通道）需要 Obsidian 运行中 + YOLO 插件已加载。Grep 搜索和图分析工具不依赖 Obsidian。
 
 ### 0.5 YOLO 插件
 
@@ -107,10 +107,7 @@ npm config delete https-proxy
       "command": "node",
       "args": ["D:/Obsidian/AI/mcp/server.js"],
       "env": {
-        "VAULT_ROOT": "D:/Obsidian/AI",
-        "EMBED_API_URL": "https://api.siliconflow.cn/v1",
-        "EMBED_API_KEY": "sk-xxxxxxxxxxxxxxxx",
-        "EMBED_MODEL": "Qwen/Qwen3-Embedding-8B"
+        "VAULT_ROOT": "D:/Obsidian/AI"
       }
     }
   }
@@ -128,9 +125,7 @@ npm config delete https-proxy
       "command": "node",
       "args": ["D:/Obsidian/AI/mcp/server.js"],
       "env": {
-        "VAULT_ROOT": "D:/Obsidian/AI",
-        "EMBED_API_URL": "https://api.siliconflow.cn/v1",
-        "EMBED_API_KEY": "sk-xxxxxxxxxxxxxxxx"
+        "VAULT_ROOT": "D:/Obsidian/AI"
       }
     }
   }
@@ -146,16 +141,13 @@ npm config delete https-proxy
 | 配置不生效                     | 文件路径不对      | Claude Code: `.claude/mcp.json`（项目根目录）；Claude Desktop: 见上方路径 |
 | MCP 工具列表看不到 `search_wiki` | 服务器未启动或崩溃   | 检查 MCP 日志（Claude Code: `.claude/logs/`）                      |
 
-### 2.3 环境变量常见问题
+### 2.3 YOLO Embedding 常见问题
 
 | 错误信息                              | 原因                  | 解决                                           |
 | --------------------------------- | ------------------- | -------------------------------------------- |
-| `EMBED_API_URL is not configured` | 未设置 `EMBED_API_URL` | 在 MCP 配置的 `env` 块中添加                         |
-| `EMBED_API_KEY is not configured` | 未设置 `EMBED_API_KEY` | 同上                                           |
-| `Embedding API error 401`         | API Key 无效          | 检查 Key 是否正确、是否过期                             |
-| `Embedding API error 404`         | URL 路径不对            | URL 应以 `/v1` 结尾（不含 `/embeddings`，代码会自动追加）    |
-| `Embedding API network error`     | 网络不通                | 检查防火墙/代理；`curl $EMBED_API_URL/models` 测试连通性  |
-| `Embedding API parse error`       | API 返回非预期格式         | 确认 Embedding 服务兼容 OpenAI `/v1/embeddings` 格式 |
+| `YOLO embedding unavailable` | Obsidian 未运行或 YOLO 插件未加载 | 启动 Obsidian，确认 YOLO 插件已启用 |
+| `YOLO embedding returned empty result` | YOLO embedding provider 未配置或无效 | 检查 YOLO 插件设置中的 Embedding 配置 |
+| `Failed to compute embedding via YOLO` | `obsidian eval` 执行失败 | 确认 Obsidian CLI 可用：运行 `obsidian eval` 测试 |
 
 ### 2.4 VAULT_ROOT 相关
 
@@ -184,7 +176,7 @@ npm config delete https-proxy
 | 工具不在列表中                                           | 服务器未启动。检查 MCP 日志，确认 `server.js` 路径和 Node.js 可用 |
 | 返回 `{ "results": [], "sources": [], "count": 0 }` | 正常（没有匹配页面时），尝试其他关键词                            |
 | 返回 error 消息                                       | 根据具体 error 对照上方 2.3 节                          |
-| 响应慢（>5秒）                                          | Embedding API 首次调用需加载模型，后续会快                   |
+| 响应慢（>5秒）                                          | YOLO Embedding 首次调用需预热，后续会快                        |
 
 #### 步骤 2：构建图
 
@@ -209,7 +201,7 @@ npm config delete https-proxy
 | `Page store not built` | 先运行 `build_page_store` |
 | `Graph not built`      | 先运行 `build_wiki_graph` |
 
-#### 步骤 4：构建页面向量（需要 API）
+#### 步骤 4：构建页面向量（需要 Obsidian + YOLO）
 
 ```
 → build_page_store {}
@@ -217,9 +209,9 @@ npm config delete https-proxy
 
 | 现象            | 排查                        |
 | ------------- | ------------------------- |
-| 成功返回 pages 数量 | Embedding API 正常工作        |
-| 慢（>30s）       | 正常——每个 wiki 页面需要一次 API 调用 |
-| API error     | 检查 2.3 节环境变量配置            |
+| 成功返回 pages 数量 | YOLO Embedding 正常工作        |
+| 慢（>30s）       | 正常——每个 wiki 页面需要一次 Embedding 调用 |
+| error         | 检查 2.3 节 YOLO Embedding 配置   |
 
 ### 3.2 验证是否正常工作
 
@@ -289,7 +281,6 @@ node -e "
 
 ```bash
 # 在运行 MCP 客户端的环境中
-echo $EMBED_API_URL    # 应输出你的 API URL
 echo $VAULT_ROOT        # 应输出你的 vault 路径
 ```
 

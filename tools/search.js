@@ -1,7 +1,7 @@
 "use strict";
 
 const fs = require("fs");
-const { embedTexts } = require("../lib/embed");
+const { embedViaYolo } = require("../lib/pglite");
 const { searchStore, loadStore } = require("../lib/page-store");
 const { queryWikiChunks } = require("../lib/pglite");
 const { resolveVaultRoot, walkWikiPages } = require("../lib/config");
@@ -106,18 +106,39 @@ function mergeResults(grepResults, pageResults, chunkResults, storeEntries) {
  */
 async function searchWiki(query, vault) {
   if (!query || query.trim().length === 0) {
-    return { results: [], source: "none" };
+    return { results: [], sources: ["none"], count: 0 };
   }
 
   const vaultRoot = resolveVaultRoot(vault);
+  const grepResults = grepWiki(query, vaultRoot);
 
-  // Embed question once
-  const queryVecs = await embedTexts([query.trim()]);
-  const queryVec = queryVecs[0];
+  // Try YOLO embedding; fall back to grep-only if unavailable
+  let queryVec = null;
+  try {
+    const queryVecs = await embedViaYolo([query.trim()], vault);
+    if (queryVecs && queryVecs.length > 0 && Array.isArray(queryVecs[0]) && queryVecs[0].length > 0) {
+      queryVec = queryVecs[0];
+    }
+  } catch {
+    // YOLO unavailable — grep-only
+  }
+
+  if (!queryVec) {
+    const store = loadStore(vaultRoot);
+    const storeEntries = store ? store.entries : [];
+    const enriched = grepResults.map((r) => enrichWithPageStore({ ...r, score: GREP_SCORE }, storeEntries));
+    enriched.sort((a, b) => b.score - a.score);
+    const output = enriched.slice(0, MAX_RESULTS).map((r) => ({
+      path: r.path,
+      slug: r.slug || "",
+      title: r.title || "",
+      score: r.score,
+    }));
+    return { results: output, sources: ["grep"], count: output.length };
+  }
 
   // Three channels in parallel
-  const [grepResults, pageResults, chunkResults] = await Promise.all([
-    Promise.resolve(grepWiki(query, vaultRoot)),
+  const [pageResults, chunkResults] = await Promise.all([
     pageSearch(queryVec, vaultRoot),
     chunkSearch(queryVec, vault),
   ]);
@@ -126,10 +147,8 @@ async function searchWiki(query, vault) {
   const storeEntries = store ? store.entries : [];
   const results = mergeResults(grepResults, pageResults, chunkResults, storeEntries);
 
-  // Determine overall source
   const sources = [...new Set(results.map((r) => r.source))];
 
-  // Strip internal fields, keep clean output
   const output = results.map((r) => ({
     path: r.path,
     slug: r.slug || "",

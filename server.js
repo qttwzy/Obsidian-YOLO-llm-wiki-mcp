@@ -17,7 +17,7 @@ const { handleUpdateEmbedding, handleDeleteEmbedding, handleQueryStatus } = requ
 const { initWiki } = require("./tools/init-wiki");
 const { handleSetInboxFolders, discoverSources } = require("./tools/discover");
 const { ingestSource } = require("./tools/ingest");
-const { validateConfig } = require("./lib/embed");
+
 const { resolveVaultInfo } = require("./lib/config");
 
 function formatError(message) {
@@ -124,7 +124,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     },
     {
       name: "build_page_store",
-      description: "Build or rebuild the page embedding store. Embeds all wiki pages and saves vectors to .source-tracker/page_embeddings.json. Requires EMBED_API_URL and EMBED_API_KEY in env.",
+      description: "Build or rebuild the page embedding store. Embeds all wiki pages via YOLO plugin and saves vectors to .source-tracker/page_embeddings.json. Requires Obsidian running with YOLO plugin.",
       inputSchema: {
         type: "object",
         properties: {
@@ -368,8 +368,6 @@ server.setRequestHandler(CallToolRequestSchema, safeHandler(async (request) => {
     }
 
     case "build_page_store": {
-      const configError = validateConfig();
-      if (configError) return formatError(configError);
       const { vaultRoot, vaultName } = resolveVaultInfo(args.vault);
       const result = await handleBuildStore(vaultRoot);
       return formatResult(result, vaultName);

@@ -66,9 +66,8 @@ server.js              # MCP server entry point (stdio transport)
 | Variable | Required | Default |
 |----------|----------|---------|
 | `VAULT_ROOT` | No | `findNearestVault(process.cwd())` |
-| `EMBED_API_URL` | Yes | — |
-| `EMBED_API_KEY` | Yes | — |
-| `EMBED_MODEL` | No | `Qwen/Qwen3-Embedding-8B` |
+
+> Embedding is handled by the YOLO plugin via `obsidian eval` — no external API keys needed.
 
 ## Multi-Vault Support
 

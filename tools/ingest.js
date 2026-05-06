@@ -119,7 +119,9 @@ function ingestSource(args) {
     return { error: `Source file not found: ${sourceFile}` };
   }
 
-  const slug = title.replace(/[\\/:*?"<>|]/g, "-");
+  // Strip chars illegal in filenames on any platform (Windows is most restrictive).
+  // Conservative approach keeps slugs consistent across synced vaults.
+  const slug = title.replace(/[\\/:*?"<>|\0]/g, "-");
 
   // Build full page content with frontmatter if not already present
   let pageContent;

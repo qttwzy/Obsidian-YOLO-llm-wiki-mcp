@@ -2,7 +2,7 @@
 
 const crypto = require("crypto");
 const { updateEmbedding, deleteEmbedding, queryPgliteStatus } = require("../lib/pglite");
-const { embedTexts } = require("../lib/embed");
+const { embedViaYolo } = require("../lib/pglite");
 
 /**
  * Compute SHA256 hash of content (first 16 chars).
@@ -26,20 +26,23 @@ async function handleUpdateEmbedding(args) {
     return { error: "content is required" };
   }
 
-  // Compute embedding vector using configured API
+  // Compute embedding via YOLO plugin
   let embedding;
   try {
-    const vectors = await embedTexts([content]);
+    const vectors = await embedViaYolo([content], vault);
+    if (!vectors || vectors.length === 0 || !Array.isArray(vectors[0]) || vectors[0].length === 0) {
+      return { error: "YOLO embedding returned empty result" };
+    }
     embedding = vectors[0];
   } catch (e) {
-    return { error: "Failed to compute embedding: " + e.message };
+    return { error: "Failed to compute embedding via YOLO: " + e.message };
   }
 
   const entry = {
     path: filePath,
     mtime: Date.now(),
     content: content,
-    model: process.env.EMBED_MODEL || "Qwen/Qwen3-Embedding-8B",
+    model: "yolo",
     dimension: embedding.length,
     embedding: embedding,
     metadata: metadata || {},

@@ -11,7 +11,9 @@ const { discoverVaults, getVaultMap, getVaultName, getWikiDir, walkWikiPages } =
 describe("getVaultName", () => {
   it("returns basename of an absolute path", () => {
     assert.strictEqual(getVaultName("/a/b/MyVault"), "MyVault");
-    assert.strictEqual(getVaultName("C:\\Obsidian\\Vault"), "Vault");
+    if (process.platform === "win32") {
+      assert.strictEqual(getVaultName("C:\\Obsidian\\Vault"), "Vault");
+    }
   });
 });
 

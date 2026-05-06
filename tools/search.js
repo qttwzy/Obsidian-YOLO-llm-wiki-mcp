@@ -1,11 +1,10 @@
 "use strict";
 
-const { execFileSync } = require("child_process");
-const path = require("path");
+const fs = require("fs");
 const { embedTexts } = require("../lib/embed");
 const { searchStore, loadStore } = require("../lib/page-store");
 const { queryWikiChunks } = require("../lib/pglite");
-const { resolveVaultRoot } = require("../lib/config");
+const { resolveVaultRoot, walkWikiPages } = require("../lib/config");
 
 const GREP_SCORE = 0.5;
 const GREP_BOOST_THRESHOLD = 0.6;
@@ -18,24 +17,18 @@ const MAX_RESULTS = 8;
  */
 function grepWiki(query, vaultRoot) {
   try {
-    const keywords = query.split(/\s+/).filter((w) => w.length > 1).join("|");
-    if (!keywords) return [];
+    const keywords = query.split(/\s+/).filter((w) => w.length > 1);
+    if (!keywords.length) return [];
 
-    const wikiDir = path.join(vaultRoot, "wiki");
-    const result = execFileSync(
-      "grep", ["-rlE", keywords, wikiDir, "--include=*.md"],
-      { timeout: 5000, encoding: "utf-8", stdio: ["ignore", "pipe", "ignore"] }
-    ).trim();
-
-    return result
-      .split("\n")
-      .filter(Boolean)
-      .map((fp) => ({
-        path: path.relative(vaultRoot, fp).replace(/\\/g, "/"),
-        score: 1.0,
-        source: "grep",
-        preview: null,
-      }));
+    const files = walkWikiPages(vaultRoot);
+    const results = [];
+    for (const f of files) {
+      const content = fs.readFileSync(f.absPath, "utf-8").toLowerCase();
+      if (keywords.every((kw) => content.includes(kw.toLowerCase()))) {
+        results.push({ path: f.relPath, score: 1.0, source: "grep", preview: null });
+      }
+    }
+    return results;
   } catch {
     return [];
   }

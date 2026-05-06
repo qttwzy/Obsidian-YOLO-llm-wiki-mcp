@@ -6,7 +6,7 @@ This file provides guidance to Claude Code when working in this project.
 
 An MCP (Model Context Protocol) server for managing an LLM-Wiki knowledge base. It provides search, semantic linting, and decision workflow tools for Obsidian vaults organized in the Karpathy LLM-Wiki pattern.
 
-This is a Node.js project — no TypeScript, no build step, no test framework yet.
+This is a Node.js project — no TypeScript, no build step. Tests use Node.js built-in `node:test`.
 
 ## Architecture
 
@@ -18,14 +18,18 @@ server.js              # MCP server entry point (stdio transport)
 │   ├── graph.js       # Wiki graph construction + persistence (load/save)
 │   ├── page-store.js  # Page embedding store (read/write/search .source-tracker/page_embeddings.json)
 │   ├── pglite.js      # YOLO PGlite integration (live via obsidian eval, fallback to cached tar.gz)
-│   └── relevance.js   # 4-signal edge weight calculation
+│   ├── relevance.js   # 4-signal edge weight calculation
+│   └── resolver.js    # Wikilink resolution (resolveLink, getResolvedOutLinks)
 └── tools/
     ├── search.js      # Three-channel search (grep + page embeddings + PGlite chunks)
     ├── lint.js        # Dual-engine lint (vector similarity + graph topology)
     ├── store.js       # Page embedding store build/update handlers
     ├── decisions.js   # Decision log CRUD (create/resolve/correct)
     ├── graph.js       # Wiki graph build/update handlers
-    └── yolo-crud.js   # YOLO PGlite CRUD operations (update/delete/status)
+    ├── yolo-crud.js   # YOLO PGlite CRUD operations (update/delete/status)
+    ├── init-wiki.js   # LLM-Wiki skeleton initialization
+    ├── discover.js    # Inbox configuration + source discovery
+    └── ingest.js      # Source ingestion (page + index + log + archive)
 ```
 
 ## Key Design Decisions
@@ -44,7 +48,7 @@ server.js              # MCP server entry point (stdio transport)
 
 - CommonJS (`require`/`module.exports`), not ESM
 - `"use strict"` at top of every file
-- No external dependencies beyond `@modelcontextprotocol/sdk` and `@electric-sql/pglite`
+- No external dependencies beyond the MCP SDK and PGlite (ESLint is dev-only)
 - Error handling: tools return `{ error: "message" }` objects, never throw to the caller
 - Path separators: always normalize to `/` with `.replace(/\\/g, "/")` for cross-platform consistency
 - Security: use `execFileSync` with argument arrays, never `execSync` with shell strings
@@ -104,4 +108,3 @@ Safety mechanisms:
 | `ingest_source` | Ingest source into wiki | `sourceFile`, `inbox`, `type`, `title`, `content`, `summary`, `vault?` |
 
 Complete LLM-Wiki workflow: Init → Set Inbox → Discover → Ingest → Query → Lint
-- Coordinates delete+insert to prevent duplicate records

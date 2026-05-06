@@ -21,17 +21,26 @@ node --test     # unit tests only
 ## Project structure
 
 ```
-server.js         # MCP server entry point
-lib/              # Core libraries (stateless)
-  config.js       # Vault discovery & path validation
-  embed.js        # Embedding API client
-  graph.js        # Wiki graph construction
-  page-store.js   # Page embedding store
-  pglite.js       # YOLO PGlite integration
-  relevance.js    # 4-signal edge weighting
-  resolver.js     # Wikilink resolution
-tools/            # MCP tool handlers (thin wrappers)
-tests/            # Unit tests
+server.js           # MCP server entry point
+lib/                # Core libraries (stateless)
+  config.js         # Vault discovery & path validation
+  embed.js          # Embedding API client
+  graph.js          # Wiki graph construction
+  page-store.js     # Page embedding store
+  pglite.js         # YOLO PGlite integration
+  relevance.js      # 4-signal edge weighting
+  resolver.js       # Wikilink resolution
+tools/              # MCP tool handlers (thin wrappers)
+  search.js         # Three-channel search
+  lint.js           # Dual-engine lint
+  store.js          # Page embedding store management
+  decisions.js      # Decision log CRUD
+  graph.js          # Wiki graph build/update
+  yolo-crud.js      # YOLO PGlite CRUD
+  init-wiki.js      # LLM-Wiki skeleton init
+  discover.js       # Inbox config + source discovery
+  ingest.js         # Source ingestion
+tests/              # 98 unit tests (10 files)
 ```
 
 ## Coding conventions

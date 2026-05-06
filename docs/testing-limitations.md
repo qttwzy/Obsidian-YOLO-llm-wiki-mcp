@@ -8,11 +8,21 @@ Functions that cannot be covered by unit tests and the reasons why.
 |----------|----------|--------|
 | `embedTexts` | `lib/embed.js` | Requires external Embedding API (HTTP). Unit tests should not depend on network. |
 
-## Obsidian runtime-dependent
+## Conditionally testable (Obsidian running)
 
 | Function | Location | Reason |
 |----------|----------|--------|
-| `tryObsidianEval` | `lib/pglite.js` | Requires Obsidian running with YOLO plugin. |
+| `obsidianEval` | `lib/pglite.js` | Tested when Obsidian is running with YOLO plugin. Skipped otherwise. |
+| `checkYoloStatus` | `lib/pglite.js` | Same — skipped when Obsidian unavailable. |
+| `queryPgliteStatus` | `lib/pglite.js` | Same. |
+| `readEmbedding` | `lib/pglite.js` | Same. |
+| `embedViaYolo` | `lib/pglite.js` | Same. |
+
+## Obsidian runtime-dependent (untestable)
+
+| Function | Location | Reason |
+|----------|----------|--------|
+| `tryObsidianEval` | `lib/pglite.js` | Internal function, depends on Obsidian eval CLI output parsing. |
 | `chunkSearch` | `tools/search.js` | Calls queryWikiChunks → tryObsidianEval. |
 
 ## PGlite write operations (side-effect concern)

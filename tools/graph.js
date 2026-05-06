@@ -112,6 +112,7 @@ function handleUpdateGraph({ filePath, semanticChange, vaultRoot }) {
       semanticChange: null,
       waitingForConfirmation: true,
       question: "这次编辑是否改变了页面的语义？请传入 semanticChange 参数。",
+      _hint: "确认语义变化后，建议用 update_pglite_embedding 刷新该页面的 PGlite 向量嵌入。",
     };
   }
 
@@ -128,6 +129,7 @@ function handleUpdateGraph({ filePath, semanticChange, vaultRoot }) {
       semanticChange: false,
       status: "no_update",
       reason: "semanticChange is false",
+      _hint: "链接已更，建议 update_pglite_embedding 刷新该页的 PGlite 向量嵌入。",
     };
     appendChangelog({ file: slug, semanticChange: false, changes: diff.outLinks }, root);
     return report;
@@ -256,6 +258,7 @@ function handleUpdateGraph({ filePath, semanticChange, vaultRoot }) {
       totalNodes: Object.keys(graph.nodes).length,
       totalEdges: graph.edges.length,
     },
+    _hint: "语义已更新，建议 update_pglite_embedding 刷新该页及受影响页的 PGlite 向量嵌入。",
   };
 
   appendChangelog({

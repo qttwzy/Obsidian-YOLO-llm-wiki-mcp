@@ -43,7 +43,7 @@ LLM 遇到矛盾或不确定的信息时，不会自行判断，而是创建结�
 │  @modelcontextprotocol/sdk   (MCP 协议)         │
 │  @electric-sql/pglite        (向量数据库)       │
 │  Node.js http/https          (Embedding 客户端) │
-│  child_process (grep/obsidian) (系统命令)       │
+│  child_process (obsidian)    (Obsidian CLI)     │
 ├─────────────────────────────────────────────────┤
 │  外部依赖 = 2    |    原生模块 = 2              │
 └─────────────────────────────────────────────────┘
@@ -237,7 +237,7 @@ server.js
 
 #### 搜索通道
 
-1. **Grep** — 对 `wiki/*.md` 执行 `grep -rlE` 关键词匹配（零成本）
+1. **Grep** — 对 `wiki/*.md` 执行关键词匹配（纯 Node.js，零外部依赖）
 2. **页面向量** — 对 `.source-tracker/page_embeddings.json` 执行余弦相似度计算
 3. **PGlite 分块** — 查询 YOLO 的 PGlite 向量数据库（通过 `obsidian eval` 实时查询或使用缓存的 tar.gz）
 
@@ -310,7 +310,7 @@ Only depends on `@modelcontextprotocol/sdk` and `@electric-sql/pglite`. The Embe
 │  @modelcontextprotocol/sdk   (MCP Protocol)     │
 │  @electric-sql/pglite        (Vector Database)  │
 │  Node.js http/https          (Embedding Client) │
-│  child_process (grep/obsidian) (System CLI)     │
+│  child_process (obsidian)    (Obsidian CLI)     │
 ├─────────────────────────────────────────────────┤
 │  External deps = 2   |   Native modules = 2     │
 └─────────────────────────────────────────────────┘
@@ -504,7 +504,7 @@ server.js
 
 #### Search Channels
 
-1. **Grep** — `grep -rlE` on `wiki/*.md` for keyword matches (zero cost)
+1. **Grep** — pure Node.js keyword matching on `wiki/*.md` (zero external deps)
 2. **Page embeddings** — cosine similarity on `.source-tracker/page_embeddings.json`
 3. **PGlite chunks** — queries YOLO's PGlite vector database (live via `obsidian eval` or cached tar.gz)
 

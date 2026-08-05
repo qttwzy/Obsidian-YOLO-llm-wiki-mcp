@@ -4,3 +4,4 @@ node_modules/
 .claude/settings.local.json
 docs/superpowers/
 docs/work-log-*.md
+docs/audit-*.md

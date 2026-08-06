@@ -1,5 +1,31 @@
 # Changelog
 
+## 3.1.0 (2026-08-06)
+
+### Bug Fixes (P0 — data integrity)
+
+- **`create_decision` ID collision** — Auto-generated IDs now use `max(numeric id across pending+resolved) + 1` instead of `pending.length + 1`. The old logic collided after a resolve shrank the pending list (e.g. resolve DEC-001 → new decision reused DEC-002). Auto-generated IDs are also de-duplicated against both sections.
+- **`correct_decision` duplicate blocks** — Inserting a "🔄 修正中" block previously left the old resolved block in place, creating two `### DEC-XXX` headers in the resolved section. The old block is now marked "⚠️ 已废止" (superseded) instead, preserving the audit trail. `list_decisions` excludes superseded blocks from `resolvedCount`.
+- **`finalize_correction` (new tool)** — Closes the correction loop opened by `correct_decision`. Converts a "🔄 修正中" block back to resolved ("✅") with a chosen option or custom text. Previously there was no tool to complete a correction, breaking the "LLM fully maintains decisions" design.
+- **`decisions.md` parsing** — A non-empty file with no matching section header now throws instead of silently returning empty arrays (silent data loss). Empty files still return zeros.
+- **`resolve_decision` block removal** — Replaced `raw.replace(dec.raw, "")` with block-boundary removal to avoid CRLF/substring-collision misdeletes.
+- **`ingest_source` EXDEV** — `archiveSource` now falls back to copy+unlink when `renameSync` throws `EXDEV` (cross-device), the most common real-world Step-4 failure in Docker/symlinked deployments.
+- **`ingest_source` slug** — Pure-whitespace or all-separator titles now fall back to `untitled-{timestamp}` instead of producing meaningless filenames.
+- **`ingest_source` atomicity claim** — Dropped the misleading "Atomic" label from docs and tool description; the operation is best-effort sequential with no rollback.
+
+### Hardening (P1)
+
+- **SQL parameterization** — `tryCacheQuery` now uses `$1::vector` + `$2` placeholders instead of interpolating the vector and limit into SQL text. No exploitable path existed (`assertValidVector` + non-user vectors), but this removes reliance on validation as the sole guard.
+- **`tryObsidianEval` dedup** — Reuses `obsidianEval()` instead of duplicating `execFileSync` + output parsing, keeping temp-file cleanup and error handling consistent.
+- **`vecStr` safety** — `createEmbedding`/`updateEmbedding` build the vector string with `JSON.stringify` instead of `join(",")`, eliminating a JS-literal escape risk.
+- **`resolveVaultRoot`** — Throws on an unknown vault name instead of silently falling back to `VAULT_ROOT`. Prevents cross-vault writes from a typo in multi-vault setups. Caught by `safeHandler`.
+- **Version alignment** — `package.json` and `server.js` bumped from 2.0.0 to 3.1.0 to match the CHANGELOG (was stuck at 2.0.0 while CHANGELOG showed 3.0.0).
+
+### Performance (P2)
+
+- **`update_wiki_graph` edge lookup** — Uses a `Set` index instead of `graph.edges.some()` (O(edges) → O(1)) per candidate.
+- **`structuralInsights`** — Resolves outLinks via `getResolvedOutLinks` instead of a linear title scan over all nodes (O(n²) → O(n)).
+
 ## 3.0.0 (2026-05-06)
 
 ### New Features

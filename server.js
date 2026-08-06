@@ -53,7 +53,7 @@ function safeHandler(fn) {
 }
 
 const server = new Server(
-  { name: "Obsidian-YOLO-llm-wiki-mcp", version: "2.0.0" },
+  { name: "Obsidian-YOLO-llm-wiki-mcp", version: "3.1.0" },
   { capabilities: { tools: {} } }
 );
 

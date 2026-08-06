@@ -109,7 +109,16 @@ async function searchWiki(query, vault) {
     return { results: [], sources: ["none"], count: 0 };
   }
 
-  const vaultRoot = resolveVaultRoot(vault);
+  // resolveVaultRoot throws on an unknown vault name (rather than silently
+  // falling back to VAULT_ROOT). When called via server.js, vault is already
+  // an absolute path and short-circuits before the throw; guard the direct-
+  // call path so a typo returns a soft error instead of crashing.
+  let vaultRoot;
+  try {
+    vaultRoot = resolveVaultRoot(vault);
+  } catch (e) {
+    return { error: e.message };
+  }
   const grepResults = grepWiki(query, vaultRoot);
 
   // Try YOLO embedding; fall back to grep-only if unavailable

@@ -125,6 +125,13 @@ describe("resolveVaultRoot", () => {
     const result = resolveVaultRoot(absPath);
     assert.strictEqual(result, absPath);
   });
+
+  it("throws on an unknown vault name (no silent fallback)", () => {
+    assert.throws(
+      () => resolveVaultRoot("nonexistent-vault-xyz-123"),
+      /Unknown vault: nonexistent-vault-xyz-123/
+    );
+  });
 });
 
 describe("resolveVaultInfo", () => {

@@ -24,6 +24,9 @@ function writeDecisionsFile(content, vaultRoot) {
 
 /**
  * Parse decisions.md into structured pending/resolved arrays.
+ * Throws if the file is non-empty but neither section header matches —
+ * a corrupt header previously caused silent data loss (empty arrays
+ * with no signal). The throw is caught by safeHandler in server.js.
  */
 function parseDecisions(raw) {
   const pending = [];
@@ -44,6 +47,15 @@ function parseDecisions(raw) {
     for (const block of blocks) {
       resolved.push(parseBlock(block.trim()));
     }
+  }
+
+  // Detect a corrupt-but-non-empty file: both sections failed to match.
+  // A legitimately empty file has no DEC blocks but still has the headers,
+  // so pendingMatch/resolvedMatch would be non-null there.
+  if (raw.trim() && !pendingMatch && !resolvedMatch) {
+    throw new Error(
+      "decisions.md is non-empty but neither '## 待决 (pending)' nor '## 已决 (resolved)' header was found — file may be corrupt"
+    );
   }
 
   return { pending, resolved };
@@ -82,12 +94,13 @@ function parseBlock(block) {
   const customText = customTextMatch ? customTextMatch[1].trim() : "";
 
   const isCorrecting = dateRaw.includes("修正中");
+  const isSuperseded = dateRaw.includes("已废止");
   const originalMatch = block.match(/\*\*原决定\*\*:\s*(.+?)(?=\n|$)/);
   const reasonMatch = block.match(/\*\*修正原因\*\*:\s*(.+?)(?=\n|$)/s);
 
   return {
     id,
-    date: dateRaw.replace(/ \| 🔄 修正中/, ""),
+    date: dateRaw.replace(/ \| 🔄 修正中/, "").replace(/ \| ⚠️ 已废止.*$/, ""),
     situation,
     options,
     hasCustom,
@@ -95,13 +108,45 @@ function parseBlock(block) {
     customText,
     raw: block,
     isCorrecting,
+    isSuperseded,
     originalDecision: originalMatch ? originalMatch[1].trim() : undefined,
     correctionReason: reasonMatch ? reasonMatch[1].trim() : undefined,
   };
 }
 
 /**
+ * Extract the numeric part of a DEC id (e.g. "DEC-007" -> 7).
+ * @param {string} id
+ * @returns {number}
+ */
+function decIdNum(id) {
+  const m = String(id).match(/^DEC-(\d+)$/);
+  return m ? parseInt(m[1], 10) : 0;
+}
+
+/**
+ * Generate a unique decision ID by taking max(existing numeric ids) + 1.
+ * Scans both pending and resolved to avoid collisions after resolve/delete.
+ * @param {Array} pending
+ * @param {Array} resolved
+ * @returns {string}
+ */
+function nextDecisionId(pending, resolved) {
+  let max = 0;
+  for (const d of pending) {
+    if (d.id) max = Math.max(max, decIdNum(d.id));
+  }
+  for (const d of resolved) {
+    if (d.id) max = Math.max(max, decIdNum(d.id));
+  }
+  return `DEC-${String(max + 1).padStart(3, "0")}`;
+}
+
+/**
  * List all decisions, optionally filtered by status.
+ * Superseded blocks (⚠️ 已废止) are excluded from resolvedCount to avoid
+ * double-counting after a correction, but remain in the resolved array
+ * for historical traceability.
  */
 function listDecisions({ status, vaultRoot } = {}) {
   const { pending, resolved } = readDecisionsFile(vaultRoot);
@@ -111,7 +156,7 @@ function listDecisions({ status, vaultRoot } = {}) {
   if (!status || status === "resolved") result.resolved = resolved;
 
   const pendingCount = pending.length;
-  const resolvedCount = resolved.length;
+  const resolvedCount = resolved.filter((d) => !d.isSuperseded).length;
 
   return { ...result, summary: { pendingCount, resolvedCount } };
 }
@@ -120,14 +165,19 @@ function listDecisions({ status, vaultRoot } = {}) {
  * Create a new pending decision entry.
  */
 function createDecision({ id, situation, options, vaultRoot }) {
-  const { raw, pending } = readDecisionsFile(vaultRoot);
+  const { raw, pending, resolved } = readDecisionsFile(vaultRoot);
 
-  const existingIds = pending.map((d) => d.id).filter(Boolean);
-  if (id && existingIds.includes(id)) {
+  const allIds = [...pending, ...resolved].map((d) => d.id).filter(Boolean);
+  if (id && allIds.includes(id)) {
     return { error: `Decision ${id} already exists` };
   }
 
-  const decId = id || `DEC-${String(pending.length + 1).padStart(3, "0")}`;
+  // Auto-generate from max(existing id) + 1 across BOTH sections, not
+  // pending.length + 1 — the latter collides after a resolve shrinks pending.
+  const decId = id || nextDecisionId(pending, resolved);
+  if (allIds.includes(decId)) {
+    return { error: `Decision ${decId} already exists` };
+  }
   const date = new Date().toISOString().slice(0, 10);
 
   const optionsBlock = options
@@ -150,6 +200,33 @@ function createDecision({ id, situation, options, vaultRoot }) {
 
   writeDecisionsFile(newRaw, vaultRoot);
   return { status: "created", id: decId };
+}
+
+/**
+ * Remove a single DEC block from raw text by locating it via `### DEC-`
+ * block boundaries rather than substring replace. This is robust against
+ * CRLF line endings, regex-special characters, and substring collisions
+ * (e.g. another decision's situation quoting this block's text).
+ * @param {string} raw - Full decisions.md content
+ * @param {string} blockRaw - The trimmed block to remove (must start with `### DEC-`)
+ * @returns {string} raw with the first matching block removed
+ */
+function removeBlockByBoundary(raw, blockRaw) {
+  // Normalize both to compare header + body without CRLF/LF differences.
+  const norm = (s) => s.replace(/\r\n/g, "\n");
+  const target = norm(blockRaw).trim();
+  const normalized = norm(raw);
+
+  // Split into blocks preserving the section headers.
+  const parts = normalized.split(/(?=### DEC-)/);
+  for (let i = 0; i < parts.length; i++) {
+    if (norm(parts[i]).trim() === target) {
+      parts.splice(i, 1);
+      return parts.join("");
+    }
+  }
+  // Fallback: substring replace (preserves old behavior if boundary match misses)
+  return normalized.replace(target, "");
 }
 
 /**
@@ -182,7 +259,8 @@ function resolveDecision({ id, option, customText, vaultRoot }) {
   const resolvedHeader = "## 已决 (resolved)";
   const resolvedEntry = `\n### ${id} | ✅ ${date}\n${newBlock.replace(/^### .+\n/, "")}`;
 
-  let newRaw = raw.replace(dec.raw, "");
+  // Remove the pending block by boundary, not substring replace.
+  let newRaw = removeBlockByBoundary(raw, dec.raw);
   const hasResolvedHeader = newRaw.includes(resolvedHeader);
   if (hasResolvedHeader) {
     newRaw = newRaw.replace(resolvedHeader, resolvedHeader + resolvedEntry);
@@ -210,11 +288,16 @@ function resolveDecision({ id, option, customText, vaultRoot }) {
 
 /**
  * Add a correction block to a resolved decision.
+ * Before inserting the new "🔄 修正中" block, the old resolved block is
+ * marked "⚠️ 已废止 (date)" instead of being deleted — this preserves the
+ * audit trail and prevents the duplicate-block bug where two `### DEC-XXX`
+ * headers coexist in the resolved section.
  */
 function correctDecision({ id, originalDecision, correctionReason, options, vaultRoot }) {
   const { raw, resolved } = readDecisionsFile(vaultRoot);
 
-  const dec = resolved.find((d) => d.id === id);
+  // Find the active (non-superseded) resolved block for this id.
+  const dec = resolved.find((d) => d.id === id && !d.isSuperseded);
   if (!dec) return { error: `Resolved decision ${id} not found` };
 
   const optionsBlock = options
@@ -223,14 +306,26 @@ function correctDecision({ id, originalDecision, correctionReason, options, vaul
 
   const correctionBlock = `\n### ${id} | 🔄 修正中\n**原决定**: ${originalDecision}\n**修正原因**: ${correctionReason}\n\n${optionsBlock}\n- [ ] __________ _(自定义)_\n`;
 
+  // Mark the old resolved block as superseded (keep history, avoid duplicate id).
+  const oldDate = dec.date || "";
+  const supersededHeader = oldDate
+    ? `### ${id} | ⚠️ 已废止 (${oldDate})`
+    : `### ${id} | ⚠️ 已废止`;
+  let markedRaw = raw;
+  if (dec.raw) {
+    // Replace the old block's header line only.
+    const oldHeaderRe = new RegExp(`^### ${id} \\| [^\n]*`, "m");
+    markedRaw = raw.replace(oldHeaderRe, supersededHeader);
+  }
+
   const resolvedHeader = "## 已决 (resolved)";
   const placeholder = "_(当前无已决条目)_";
   let newRaw;
 
-  if (raw.includes(placeholder)) {
-    newRaw = raw.replace(placeholder, correctionBlock.trimStart());
-  } else if (raw.includes(resolvedHeader)) {
-    newRaw = raw.replace(resolvedHeader, resolvedHeader + correctionBlock);
+  if (markedRaw.includes(placeholder)) {
+    newRaw = markedRaw.replace(placeholder, correctionBlock.trimStart());
+  } else if (markedRaw.includes(resolvedHeader)) {
+    newRaw = markedRaw.replace(resolvedHeader, resolvedHeader + correctionBlock);
   } else {
     return { error: "Could not find resolved section" };
   }
@@ -239,4 +334,57 @@ function correctDecision({ id, originalDecision, correctionReason, options, vaul
   return { status: "correcting", id };
 }
 
-module.exports = { listDecisions, createDecision, resolveDecision, correctDecision };
+/**
+ * Finalize a correction: convert a "🔄 修正中" block back to resolved.
+ * Checks the chosen option (or custom text) and changes the header to
+ * "✅ date", closing the correction loop that correctDecision opened.
+ */
+function finalizeCorrection({ id, option, customText, vaultRoot }) {
+  const { raw, resolved } = readDecisionsFile(vaultRoot);
+
+  // Find the correcting block (isCorrecting) for this id.
+  const dec = resolved.find((d) => d.id === id && d.isCorrecting);
+  if (!dec) return { error: `Correcting decision ${id} not found` };
+
+  let newBlock = dec.raw;
+
+  if (option) {
+    const optLetter = option.toUpperCase();
+    newBlock = newBlock.replace(
+      new RegExp(`- \\[ \\]\\s*\\*\\*${optLetter}\\.`),
+      `- [x] **${optLetter}.`
+    );
+  }
+
+  if (customText) {
+    newBlock = newBlock.replace(
+      /- \[ \] _{10,}.*自定义\)_/,
+      `- [x] __________ ${customText}`
+    );
+  }
+
+  // Change header from "🔄 修正中" to "✅ date".
+  const date = new Date().toISOString().slice(0, 10);
+  const oldHeaderRe = new RegExp(`^### ${id} \\| 🔄 修正中`, "m");
+  if (!oldHeaderRe.test(newBlock)) {
+    return { error: `Decision ${id} is not in correcting state` };
+  }
+  newBlock = newBlock.replace(oldHeaderRe, `### ${id} | ✅ ${date}`);
+
+  // Replace the correcting block in raw by boundary.
+  const newRaw = removeBlockByBoundary(raw, dec.raw).replace(
+    "## 已决 (resolved)",
+    "## 已决 (resolved)" + "\n" + newBlock
+  );
+
+  writeDecisionsFile(newRaw, vaultRoot);
+  return { status: "finalized", id, option: option || "custom", customText };
+}
+
+module.exports = {
+  listDecisions,
+  createDecision,
+  resolveDecision,
+  correctDecision,
+  finalizeCorrection,
+};

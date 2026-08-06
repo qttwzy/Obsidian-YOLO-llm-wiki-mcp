@@ -11,7 +11,7 @@ const {
 const { searchWiki } = require("./tools/search");
 const { markSkipped, updateLintTimestamp, lintFull } = require("./tools/lint");
 const { handleBuildStore, handleUpdateStore } = require("./tools/store");
-const { listDecisions, createDecision, resolveDecision, correctDecision } = require("./tools/decisions");
+const { listDecisions, createDecision, resolveDecision, correctDecision, finalizeCorrection } = require("./tools/decisions");
 const { handleBuildGraph, handleUpdateGraph } = require("./tools/graph");
 const { handleUpdateEmbedding, handleDeleteEmbedding, handleQueryStatus } = require("./tools/yolo-crud");
 const { initWiki } = require("./tools/init-wiki");
@@ -208,6 +208,20 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
           vault: vaultParam,
         },
         required: ["id", "originalDecision", "correctionReason", "options"],
+      },
+    },
+    {
+      name: "finalize_correction",
+      description: "Finalize a correction on a previously resolved decision. Converts the '🔄 修正中' block back to resolved ('✅') by selecting an option or providing a custom answer. Closes the correction loop opened by correct_decision.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          id: { type: "string", description: "Decision ID to finalize (e.g. 'DEC-037')" },
+          option: { type: "string", description: "Option letter to select (A, B, C, ...). Omit if using customText." },
+          customText: { type: "string", description: "Custom corrected decision text. Omit if selecting a predefined option." },
+          vault: vaultParam,
+        },
+        required: ["id"],
       },
     },
     {
@@ -483,6 +497,23 @@ server.setRequestHandler(CallToolRequestSchema, safeHandler(async (request) => {
         originalDecision: args.originalDecision,
         correctionReason: args.correctionReason,
         options: args.options,
+        vaultRoot,
+      });
+      return formatResult(result, vaultName);
+    }
+
+    case "finalize_correction": {
+      if (!args.id) {
+        return formatError("finalize_correction requires an id");
+      }
+      if (!args.option && !args.customText) {
+        return formatError("finalize_correction requires either option or customText");
+      }
+      const { vaultRoot, vaultName } = resolveVaultInfo(args.vault);
+      const result = finalizeCorrection({
+        id: args.id,
+        option: args.option,
+        customText: args.customText,
         vaultRoot,
       });
       return formatResult(result, vaultName);

@@ -6,8 +6,21 @@ const fs = require("fs");
 const path = require("path");
 const os = require("os");
 
-const { listDecisions, createDecision, resolveDecision } = require("../tools/decisions");
+const { listDecisions, createDecision, resolveDecision, correctDecision, finalizeCorrection } = require("../tools/decisions");
 const { VAULT_ROOT } = require("../lib/config");
+
+/** Create a temp vault with a seeded decisions.md and return its root path. */
+function makeTempVault(seed) {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "dec-test-"));
+  const wikiDir = path.join(tmpDir, "wiki");
+  fs.mkdirSync(wikiDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(wikiDir, "decisions.md"),
+    seed || "## 待决 (pending)\n\n_(当前无待决条目)_\n\n## 已决 (resolved)\n\n_(当前无已决条目)_\n",
+    "utf-8"
+  );
+  return tmpDir;
+}
 
 describe("parseDecisions", () => {
   // Internal parseDecisions is tested indirectly through listDecisions
@@ -31,6 +44,28 @@ describe("parseDecisions", () => {
     const result = listDecisions({ status: "resolved", vaultRoot: VAULT_ROOT });
     assert.ok(Array.isArray(result.resolved));
     assert.strictEqual(Object.prototype.hasOwnProperty.call(result, "pending"), false);
+  });
+
+  it("throws on corrupt header (non-empty file, no section match)", () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "dec-corrupt-"));
+    const wikiDir = path.join(tmpDir, "wiki");
+    fs.mkdirSync(wikiDir, { recursive: true });
+    // No valid section headers — both pendingMatch and resolvedMatch will be null.
+    fs.writeFileSync(path.join(wikiDir, "decisions.md"), "garbage content with no headers\n", "utf-8");
+    assert.throws(
+      () => listDecisions({ vaultRoot: tmpDir }),
+      /neither.*pending.*resolved.*header was found/
+    );
+  });
+
+  it("does not throw on empty file", () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "dec-empty-"));
+    const wikiDir = path.join(tmpDir, "wiki");
+    fs.mkdirSync(wikiDir, { recursive: true });
+    fs.writeFileSync(path.join(wikiDir, "decisions.md"), "", "utf-8");
+    const result = listDecisions({ vaultRoot: tmpDir });
+    assert.strictEqual(result.summary.pendingCount, 0);
+    assert.strictEqual(result.summary.resolvedCount, 0);
   });
 });
 
@@ -81,5 +116,162 @@ describe("createDecision and resolveDecision", () => {
     assert.strictEqual(after.pending.find((d) => d.id === testId), undefined);
     const foundResolved = after.resolved.find((d) => d.id === testId);
     assert.ok(foundResolved);
+  });
+});
+
+describe("createDecision ID collision fix", () => {
+  it("auto-generates a non-colliding ID after a resolve shrinks pending", () => {
+    const tmpDir = makeTempVault();
+
+    // Create DEC-001 and DEC-002 in pending.
+    createDecision({
+      id: "DEC-001",
+      situation: "first",
+      options: [{ label: "A", action: "x", consequence: "y" }],
+      vaultRoot: tmpDir,
+    });
+    createDecision({
+      id: "DEC-002",
+      situation: "second",
+      options: [{ label: "A", action: "x", consequence: "y" }],
+      vaultRoot: tmpDir,
+    });
+
+    // Resolve DEC-001 — pending.length drops to 1, old logic would reuse DEC-002.
+    resolveDecision({ id: "DEC-001", option: "A", vaultRoot: tmpDir });
+
+    // Auto-generate a new ID — must NOT collide with DEC-002 (still pending) or DEC-001 (resolved).
+    const created = createDecision({
+      situation: "third",
+      options: [{ label: "A", action: "x", consequence: "y" }],
+      vaultRoot: tmpDir,
+    });
+    assert.strictEqual(created.status, "created");
+    // Should be DEC-003 (max of 1,2 + 1), not DEC-002.
+    assert.strictEqual(created.id, "DEC-003");
+
+    // Verify no duplicate DEC-002 in pending.
+    const after = listDecisions({ vaultRoot: tmpDir });
+    const dec002s = after.pending.filter((d) => d.id === "DEC-002");
+    assert.strictEqual(dec002s.length, 1);
+  });
+
+  it("rejects explicitly provided duplicate ID (across pending + resolved)", () => {
+    const tmpDir = makeTempVault();
+    createDecision({
+      id: "DEC-001",
+      situation: "first",
+      options: [{ label: "A", action: "x", consequence: "y" }],
+      vaultRoot: tmpDir,
+    });
+    resolveDecision({ id: "DEC-001", option: "A", vaultRoot: tmpDir });
+
+    // Try to create DEC-001 again — should fail even though it's now resolved.
+    const result = createDecision({
+      id: "DEC-001",
+      situation: "dup",
+      options: [{ label: "A", action: "x", consequence: "y" }],
+      vaultRoot: tmpDir,
+    });
+    assert.ok(result.error);
+    assert.match(result.error, /already exists/);
+  });
+});
+
+describe("correctDecision duplicate-block fix", () => {
+  it("marks the old resolved block as superseded instead of duplicating", () => {
+    const tmpDir = makeTempVault();
+    createDecision({
+      id: "DEC-001",
+      situation: "first decision",
+      options: [{ label: "A", action: "x", consequence: "y" }],
+      vaultRoot: tmpDir,
+    });
+    resolveDecision({ id: "DEC-001", option: "A", vaultRoot: tmpDir });
+
+    // Now correct it.
+    const result = correctDecision({
+      id: "DEC-001",
+      originalDecision: "chose A",
+      correctionReason: "A was wrong",
+      options: [{ label: "B", action: "switch", consequence: "better" }],
+      vaultRoot: tmpDir,
+    });
+    assert.strictEqual(result.status, "correcting");
+
+    const after = listDecisions({ vaultRoot: tmpDir });
+    // There should be exactly one DEC-001 block in the correcting state,
+    // and the old block marked superseded.
+    const dec001s = after.resolved.filter((d) => d.id === "DEC-001");
+    assert.strictEqual(dec001s.length, 2);
+    const correcting = dec001s.find((d) => d.isCorrecting);
+    const superseded = dec001s.find((d) => d.isSuperseded);
+    assert.ok(correcting, "expected a correcting block");
+    assert.ok(superseded, "expected the old block to be marked superseded");
+
+    // resolvedCount must not double-count the superseded block.
+    assert.strictEqual(after.summary.resolvedCount, 1);
+  });
+});
+
+describe("finalizeCorrection", () => {
+  it("closes the correction loop: correcting → resolved", () => {
+    const tmpDir = makeTempVault();
+    createDecision({
+      id: "DEC-001",
+      situation: "first decision",
+      options: [{ label: "A", action: "x", consequence: "y" }],
+      vaultRoot: tmpDir,
+    });
+    resolveDecision({ id: "DEC-001", option: "A", vaultRoot: tmpDir });
+    correctDecision({
+      id: "DEC-001",
+      originalDecision: "chose A",
+      correctionReason: "A was wrong",
+      options: [
+        { label: "B", action: "switch", consequence: "better" },
+        { label: "C", action: "revert", consequence: "safe" },
+      ],
+      vaultRoot: tmpDir,
+    });
+
+    // Finalize by choosing B.
+    const result = finalizeCorrection({
+      id: "DEC-001",
+      option: "B",
+      vaultRoot: tmpDir,
+    });
+    assert.strictEqual(result.status, "finalized");
+
+    const after = listDecisions({ vaultRoot: tmpDir });
+    const dec001s = after.resolved.filter((d) => d.id === "DEC-001");
+    // The correcting block should now be resolved (not isCorrecting).
+    const finalized = dec001s.find((d) => !d.isCorrecting && !d.isSuperseded);
+    assert.ok(finalized, "expected a finalized (✅) block");
+    assert.strictEqual(finalized.isCorrecting, false);
+    // Option B should be checked.
+    const optB = finalized.options.find((o) => o.label === "B");
+    assert.ok(optB);
+    assert.strictEqual(optB.checked, true);
+  });
+
+  it("returns error when id is not in correcting state", () => {
+    const tmpDir = makeTempVault();
+    createDecision({
+      id: "DEC-001",
+      situation: "first decision",
+      options: [{ label: "A", action: "x", consequence: "y" }],
+      vaultRoot: tmpDir,
+    });
+    resolveDecision({ id: "DEC-001", option: "A", vaultRoot: tmpDir });
+
+    // No correction started — finalize should fail.
+    const result = finalizeCorrection({
+      id: "DEC-001",
+      option: "A",
+      vaultRoot: tmpDir,
+    });
+    assert.ok(result.error);
+    assert.match(result.error, /not found/);
   });
 });

@@ -177,12 +177,18 @@ function handleUpdateGraph({ filePath, semanticChange, vaultRoot }) {
   const slugsToRecompute = [slug, ...affectedNodes];
   let addedEdges = 0;
 
+  // Index existing edge keys in a Set for O(1) existence checks instead of
+  // calling graph.edges.some() (O(edges)) on every candidate pair.
+  const existingEdgeKeys = new Set(
+    graph.edges.map((e) => [e.source, e.target].sort().join("|||"))
+  );
+
   for (const s of slugsToRecompute) {
     for (const [t, tNode] of nodesMap) {
       if (s === t) continue;
       const key = [s, t].sort().join("|||");
       // Skip if edge already exists
-      if (graph.edges.some((e) => [e.source, e.target].sort().join("|||") === key)) continue;
+      if (existingEdgeKeys.has(key)) continue;
 
       const sNode = nodesMap.get(s);
       if (!sNode) continue;
@@ -195,6 +201,7 @@ function handleUpdateGraph({ filePath, semanticChange, vaultRoot }) {
           signals: result.signals,
           factors: result.factors,
         });
+        existingEdgeKeys.add(key);
         addedEdges++;
         affectedNodes.add(t);
       }

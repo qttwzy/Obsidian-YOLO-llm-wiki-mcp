@@ -5,6 +5,7 @@ const path = require("path");
 const { loadStore } = require("../lib/page-store");
 const { cosineSimilarity } = require("../lib/embed");
 const { VAULT_ROOT } = require("../lib/config");
+const { getResolvedOutLinks } = require("../lib/resolver");
 
 function getSkippedPath(vaultRoot) {
   return path.join(vaultRoot || VAULT_ROOT, ".source-tracker", "skipped_connections.json");
@@ -148,6 +149,9 @@ function graphLint(graph, { minScore = 1.0, vaultRoot } = {}) {
 function structuralInsights(graph) {
   const insights = [];
   const skipSlugs = new Set(["index", "log", "overview"]);
+  // Build a nodes Map once for O(1) outLink resolution via getResolvedOutLinks,
+  // instead of a linear title scan over all nodes per outLink (O(n²)).
+  const nodesMap = new Map(Object.entries(graph.nodes));
 
   for (const [slug, node] of Object.entries(graph.nodes)) {
     const lastSegment = slug.split("/").pop().toLowerCase();
@@ -169,15 +173,10 @@ function structuralInsights(graph) {
       const nNode = graph.nodes[inLink];
       if (nNode) neighborTypes.add(nNode.type);
     }
-    // Also check outLinks (resolved)
-    for (const outLink of (node.outLinks || [])) {
-      // Try to resolve
-      for (const [s, n] of Object.entries(graph.nodes)) {
-        if (n.title === outLink || s === outLink || s.split("/").pop() === outLink) {
-          neighborTypes.add(n.type);
-          break;
-        }
-      }
+    // Resolve outLinks to actual node slugs, then collect their types.
+    for (const resolvedSlug of getResolvedOutLinks(node.outLinks || [], nodesMap)) {
+      const nNode = graph.nodes[resolvedSlug];
+      if (nNode) neighborTypes.add(nNode.type);
     }
     if (neighborTypes.size >= 2) {
       insights.push({

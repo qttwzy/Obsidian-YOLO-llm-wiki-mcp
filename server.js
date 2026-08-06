@@ -307,7 +307,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     },
     {
       name: "ingest_source",
-      description: "Ingest a source file into the wiki: create wiki page → update index.md → append log.md → archive to raw/. Atomic four-step operation.",
+      description: "Ingest a source file into the wiki: create wiki page → update index.md → append log.md → archive to raw/. Best-effort four-step operation (no rollback on partial failure).",
       inputSchema: {
         type: "object",
         properties: {

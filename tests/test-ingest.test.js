@@ -167,4 +167,46 @@ describe("ingest_source", () => {
     });
     assert.ok(result.error);
   });
+
+  it("falls back to a timestamped slug for pure-whitespace titles", () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "ingest-slug-ws-"));
+    initWiki(tmpDir);
+    handleSetInboxFolders({ action: "set", paths: ["Sources"], vault: tmpDir });
+    const srcDir = path.join(tmpDir, "Sources");
+    fs.mkdirSync(srcDir, { recursive: true });
+    fs.writeFileSync(path.join(srcDir, "ws.md"), "# WS\ncontent.", "utf-8");
+
+    const result = ingestSource({
+      sourceFile: "Sources/ws.md",
+      inbox: "Sources",
+      type: "entity",
+      title: "   ",
+      content: "# blank title\n",
+      summary: "whitespace title",
+      vault: tmpDir,
+    });
+    assert.strictEqual(result.status, "ingested");
+    assert.ok(result.page.includes("untitled-"), `expected untitled- slug, got ${result.page}`);
+  });
+
+  it("falls back to a timestamped slug for all-separator titles", () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "ingest-slug-sep-"));
+    initWiki(tmpDir);
+    handleSetInboxFolders({ action: "set", paths: ["Sources"], vault: tmpDir });
+    const srcDir = path.join(tmpDir, "Sources");
+    fs.mkdirSync(srcDir, { recursive: true });
+    fs.writeFileSync(path.join(srcDir, "sep.md"), "# SEP\ncontent.", "utf-8");
+
+    const result = ingestSource({
+      sourceFile: "Sources/sep.md",
+      inbox: "Sources",
+      type: "entity",
+      title: " /?: ",
+      content: "# sep title\n",
+      summary: "separator title",
+      vault: tmpDir,
+    });
+    assert.strictEqual(result.status, "ingested");
+    assert.ok(result.page.includes("untitled-"), `expected untitled- slug, got ${result.page}`);
+  });
 });

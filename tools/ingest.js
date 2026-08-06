@@ -82,6 +82,8 @@ function appendLog(root, entry) {
 
 /**
  * Move source file to raw/ archive.
+ * Uses rename for same-device moves; falls back to copy+unlink on EXDEV
+ * (cross-device, common with Docker volumes or symlinked raw/ dirs).
  */
 function archiveSource(root, sourceFile, inbox) {
   const srcPath = path.join(root, sourceFile);
@@ -91,13 +93,26 @@ function archiveSource(root, sourceFile, inbox) {
   if (fs.existsSync(destPath)) {
     return { error: `Archive already exists: raw/${path.basename(inbox)}/${path.basename(sourceFile)}` };
   }
-  fs.renameSync(srcPath, destPath);
+  try {
+    fs.renameSync(srcPath, destPath);
+  } catch (e) {
+    if (e.code === "EXDEV") {
+      // Cross-device link not permitted — copy then remove the original.
+      fs.copyFileSync(srcPath, destPath);
+      fs.unlinkSync(srcPath);
+    } else {
+      throw e;
+    }
+  }
   return { archived: path.relative(root, destPath).replace(/\\/g, "/") };
 }
 
 /**
  * Ingest a source file: create wiki page → update index → append log → archive.
- * Four-step atomic operation.
+ * Best-effort four-step operation. Steps are sequential with no rollback —
+ * a failure in a later step leaves earlier side effects in place. Callers
+ * should treat a non-error result as fully ingested and an error result as
+ * partially ingested (check which files were created).
  * @returns {{ status, page, indexUpdated, logEntry, archived }}
  */
 function ingestSource(args) {
@@ -121,7 +136,13 @@ function ingestSource(args) {
 
   // Strip chars illegal in filenames on any platform (Windows is most restrictive).
   // Conservative approach keeps slugs consistent across synced vaults.
-  const slug = title.replace(/[\\/:*?"<>|\0]/g, "-");
+  let slug = title.replace(/[\\/:*?"<>|\0]/g, "-");
+  // Guard against pure-whitespace / all-separator titles that would produce
+  // an empty or meaningless slug (e.g. "   " or " /? "). Fall back to a
+  // timestamped name so the page is always addressable.
+  if (!slug.replace(/[-\s]/g, "")) {
+    slug = `untitled-${Date.now()}`;
+  }
 
   // Build full page content with frontmatter if not already present
   let pageContent;

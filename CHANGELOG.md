@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+### Fixes
+
+- Isolate the PGlite fallback cache by vault so a live-query failure for one vault cannot read another vault's cache.
+- Support `OBSIDIAN_CLI_PATH` for GUI-hosted MCP clients whose PATH does not include the Obsidian CLI.
+- Support both legacy `dbManager.pgClient` and YOLO 1.6.5's private `VectorManager`/vector-store runtime, and report plugin, database initialization, and unsupported-API failures accurately.
+- Add read-only live regression coverage for YOLO status, statistics, record lookup, and vector-store similarity search. Modern PGlite writes remain gated to a disposable vault.
+- Use a private temporary directory and JSON-safe path quoting for `obsidian eval`, avoiding a shared payload filename and Windows backslash/quoting failures.
+- Use atomic replacement for whole-file JSON and Markdown state writes.
+- Roll back `ingest_source` page, index, and log changes if a later local step fails.
+- Restrict `ingest_source` to regular files inside the declared inbox, reject lexical and symlink path escapes, normalize Windows-style source and inbox separators, and remove partial cross-device archive copies after a failed move.
+- Report unavailable Obsidian/YOLO runtime tests as skipped instead of silently passing them.
+- Align README and troubleshooting guidance with the current tools, cache behavior, runtime prerequisites, and YOLO Modules capability boundary.
+
 ## 3.1.0 (2026-08-06)
 
 ### Bug Fixes (P0 — data integrity)

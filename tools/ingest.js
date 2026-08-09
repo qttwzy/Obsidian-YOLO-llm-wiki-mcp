@@ -2,12 +2,21 @@
 
 const fs = require("fs");
 const path = require("path");
-const { VAULT_ROOT, getWikiDir } = require("../lib/config");
+const { getWikiDir, resolveVaultRoot, assertInsideVault } = require("../lib/config");
+const { atomicWriteFileSync } = require("../lib/fs-utils");
 
 /**
  * Create a wiki page.
  */
 const TYPE_DIRS = { entity: "entities", concept: "concepts", synthesis: "synthesis" };
+
+function isInside(parent, child, allowSame = false) {
+  const relative = path.relative(parent, child);
+  return (allowSame || relative !== "") &&
+    relative !== ".." &&
+    !relative.startsWith(`..${path.sep}`) &&
+    !path.isAbsolute(relative);
+}
 
 function createPage(root, type, slug, content) {
   const dir = path.join(getWikiDir(root), TYPE_DIRS[type] || `${type}s`);
@@ -16,7 +25,7 @@ function createPage(root, type, slug, content) {
   if (fs.existsSync(pagePath)) {
     return { error: `Page already exists: ${type}s/${slug}.md` };
   }
-  fs.writeFileSync(pagePath, content, "utf-8");
+  atomicWriteFileSync(pagePath, content);
   return { pagePath: path.relative(root, pagePath).replace(/\\/g, "/") };
 }
 
@@ -39,29 +48,28 @@ function updateIndex(root, type, slug, title, summary, status) {
   const sectionHeader = `## ${sectionLabel} (${TYPE_DIRS[type] || `${type}s`}/)`;
 
   const row = `| [[${TYPE_DIRS[type] || `${type}s`}/${slug}]] | ${summary} | ${status || "stub"} |`;
+  const sectionIdx = content.indexOf(sectionHeader);
+  if (sectionIdx < 0) {
+    return { error: `Index section not found: ${sectionHeader}` };
+  }
 
   // Replace the placeholder row (if present) or append before next section
   const placeholder = `| _(暂无)_ |`;
-  if (content.includes(placeholder)) {
-    // Find the placeholder in the correct section
-    const sectionIdx = content.indexOf(sectionHeader);
-    if (sectionIdx >= 0) {
-      const sectionContent = content.substring(sectionIdx);
-      const placeholderIdx = sectionContent.indexOf(placeholder);
-      if (placeholderIdx >= 0) {
-        content = content.substring(0, sectionIdx) + sectionContent.replace(placeholder, row);
-      }
-    }
+  const nextSectionIdx = content.indexOf("\n## ", sectionIdx + sectionHeader.length);
+  const sectionEnd = nextSectionIdx >= 0 ? nextSectionIdx : content.length;
+  const sectionContent = content.slice(sectionIdx, sectionEnd);
+  const placeholderIdx = sectionContent.indexOf(placeholder);
+  if (placeholderIdx >= 0) {
+    content = content.slice(0, sectionIdx) +
+      sectionContent.replace(placeholder, row) +
+      content.slice(sectionEnd);
   } else {
     // Append after section header
-    const sectionIdx = content.indexOf(sectionHeader);
-    if (sectionIdx >= 0) {
-      const afterHeader = content.indexOf("\n", sectionIdx) + 1;
-      content = content.slice(0, afterHeader) + "\n" + row + "\n" + content.slice(afterHeader);
-    }
+    const afterHeader = content.indexOf("\n", sectionIdx) + 1;
+    content = content.slice(0, afterHeader) + "\n" + row + "\n" + content.slice(afterHeader);
   }
 
-  fs.writeFileSync(indexPath, content, "utf-8");
+  atomicWriteFileSync(indexPath, content);
   return {};
 }
 
@@ -87,19 +95,45 @@ function appendLog(root, entry) {
  */
 function archiveSource(root, sourceFile, inbox) {
   const srcPath = path.join(root, sourceFile);
+  const rawRoot = path.join(root, "raw");
   const destDir = path.join(root, "raw", path.basename(inbox));
-  if (!fs.existsSync(destDir)) fs.mkdirSync(destDir, { recursive: true });
   const destPath = path.join(destDir, path.basename(sourceFile));
-  if (fs.existsSync(destPath)) {
-    return { error: `Archive already exists: raw/${path.basename(inbox)}/${path.basename(sourceFile)}` };
+
+  const realRoot = fs.realpathSync(root);
+  if (fs.existsSync(rawRoot) && !isInside(realRoot, fs.realpathSync(rawRoot))) {
+    return { error: "Archive root resolves outside vault root" };
   }
+  if (!fs.existsSync(destDir)) fs.mkdirSync(destDir, { recursive: true });
+  if (!isInside(realRoot, fs.realpathSync(destDir))) {
+    return { error: "Archive destination resolves outside vault root" };
+  }
+  try {
+    fs.lstatSync(destPath);
+    return { error: `Archive already exists: raw/${path.basename(inbox)}/${path.basename(sourceFile)}` };
+  } catch (e) {
+    if (e.code !== "ENOENT") throw e;
+  }
+
   try {
     fs.renameSync(srcPath, destPath);
   } catch (e) {
     if (e.code === "EXDEV") {
       // Cross-device link not permitted — copy then remove the original.
-      fs.copyFileSync(srcPath, destPath);
-      fs.unlinkSync(srcPath);
+      let copied = false;
+      try {
+        fs.copyFileSync(srcPath, destPath);
+        copied = true;
+        fs.unlinkSync(srcPath);
+      } catch (copyError) {
+        if (copied) {
+          try {
+            fs.unlinkSync(destPath);
+          } catch (cleanupError) {
+            copyError.message += `; cannot remove partial archive: ${cleanupError.message}`;
+          }
+        }
+        throw copyError;
+      }
     } else {
       throw e;
     }
@@ -108,19 +142,60 @@ function archiveSource(root, sourceFile, inbox) {
 }
 
 /**
+ * Revert completed ingest steps after a later step fails.
+ * @param {{ pagePath?: string, indexPath: string, indexBefore: string, indexUpdated: boolean, logPath: string, logBefore: string, logUpdated: boolean }} state
+ * @returns {string[]} Rollback errors, if any.
+ */
+function rollbackIngest(state) {
+  const rollbackErrors = [];
+
+  if (state.logUpdated) {
+    try { atomicWriteFileSync(state.logPath, state.logBefore); } catch (e) {
+      rollbackErrors.push(`log: ${e.message}`);
+    }
+  }
+
+  if (state.indexUpdated) {
+    try { atomicWriteFileSync(state.indexPath, state.indexBefore); } catch (e) {
+      rollbackErrors.push(`index: ${e.message}`);
+    }
+  }
+
+  if (state.pagePath) {
+    try { fs.unlinkSync(state.pagePath); } catch (e) {
+      if (e.code !== "ENOENT") rollbackErrors.push(`page: ${e.message}`);
+    }
+  }
+
+  return rollbackErrors;
+}
+
+/**
  * Ingest a source file: create wiki page → update index → append log → archive.
- * Best-effort four-step operation. Steps are sequential with no rollback —
- * a failure in a later step leaves earlier side effects in place. Callers
- * should treat a non-error result as fully ingested and an error result as
- * partially ingested (check which files were created).
+ * If a later step fails, restore the page, index, and log to their prior state.
  * @returns {{ status, page, indexUpdated, logEntry, archived }}
  */
 function ingestSource(args) {
-  const { vault: vaultParam, sourceFile, inbox, type, title, content, summary, related, concepts } = args;
-  const root = vaultParam || VAULT_ROOT;
+  const {
+    vault: vaultParam,
+    sourceFile: sourceFileParam,
+    inbox,
+    type,
+    title,
+    content,
+    summary,
+    related,
+    concepts,
+  } = args;
+  let root;
+  try {
+    root = resolveVaultRoot(vaultParam);
+  } catch (e) {
+    return { error: e.message };
+  }
 
   // Validate inputs
-  if (!sourceFile) return { error: "sourceFile is required" };
+  if (!sourceFileParam) return { error: "sourceFile is required" };
   if (!inbox) return { error: "inbox is required" };
   if (!type || !["entity", "concept", "synthesis"].includes(type)) {
     return { error: "type must be entity, concept, or synthesis" };
@@ -129,9 +204,43 @@ function ingestSource(args) {
   if (!content) return { error: "content is required" };
   if (!summary) return { error: "summary is required" };
 
-  const srcPath = path.join(root, sourceFile);
+  // Obsidian paths use forward slashes even when the producer runs on Windows.
+  // Normalize them before checking containment so synced vaults behave the same
+  // on Windows, macOS, and Linux.
+  const sourceFile = sourceFileParam.replace(/\\/g, "/");
+  const normalizedInbox = inbox.replace(/\\/g, "/").replace(/\/+$/, "");
+  let srcPath;
+  let inboxPath;
+  try {
+    srcPath = assertInsideVault(sourceFile, root);
+    inboxPath = assertInsideVault(normalizedInbox, root);
+  } catch (e) {
+    return { error: e.message };
+  }
   if (!fs.existsSync(srcPath)) {
-    return { error: `Source file not found: ${sourceFile}` };
+    return { error: `Source file not found: ${sourceFileParam}` };
+  }
+  if (!isInside(inboxPath, srcPath)) {
+    return { error: `Source file ${sourceFileParam} is outside declared inbox ${inbox}` };
+  }
+  if (!fs.lstatSync(srcPath).isFile()) {
+    return { error: `Source path is not a regular file: ${sourceFileParam}` };
+  }
+  try {
+    const realRoot = fs.realpathSync(root);
+    const realInbox = fs.realpathSync(inboxPath);
+    const realSource = fs.realpathSync(srcPath);
+    if (!isInside(realRoot, realInbox, true)) {
+      return { error: `Inbox ${inbox} resolves outside vault root` };
+    }
+    if (!isInside(realInbox, realSource)) {
+      return { error: `Source file ${sourceFileParam} resolves outside declared inbox ${inbox}` };
+    }
+    if (!isInside(realRoot, realSource)) {
+      return { error: `Source file ${sourceFileParam} resolves outside vault root` };
+    }
+  } catch (e) {
+    return { error: `Cannot validate source file ${sourceFileParam}: ${e.message}` };
   }
 
   // Strip chars illegal in filenames on any platform (Windows is most restrictive).
@@ -158,30 +267,60 @@ function ingestSource(args) {
     pageContent = `---\n${frontmatter}\n---\n\n${content}`;
   }
 
-  const results = {};
+  const indexPath = path.join(root, "index.md");
+  const logPath = path.join(root, "wiki", "log.md");
+  let indexBefore;
+  let logBefore;
+  try {
+    indexBefore = fs.readFileSync(indexPath, "utf-8");
+    logBefore = fs.readFileSync(logPath, "utf-8");
+  } catch (e) {
+    return { error: `Cannot prepare ingest transaction: ${e.message}` };
+  }
 
-  // Step 1: Create wiki page
-  const pageResult = createPage(root, type, slug, pageContent);
-  if (pageResult.error) return pageResult;
-  results.page = pageResult.pagePath;
+  const state = {
+    indexPath,
+    indexBefore,
+    indexUpdated: false,
+    logPath,
+    logBefore,
+    logUpdated: false,
+    pagePath: null,
+  };
 
-  // Step 2: Update index
-  const indexResult = updateIndex(root, type, slug, title, summary, "stub");
-  if (indexResult.error) return indexResult;
-  results.indexUpdated = true;
+  try {
+    // Step 1: Create wiki page
+    const pageResult = createPage(root, type, slug, pageContent);
+    if (pageResult.error) return pageResult;
+    state.pagePath = path.join(root, pageResult.pagePath);
 
-  // Step 3: Append log
-  const logResult = appendLog(root, `${title} | ${sourceFile}`);
-  if (logResult.error) return logResult;
-  results.logEntry = `ingest | ${title}`;
+    // Step 2: Update index
+    const indexResult = updateIndex(root, type, slug, title, summary, "stub");
+    if (indexResult.error) throw new Error(indexResult.error);
+    state.indexUpdated = true;
 
-  // Step 4: Archive source
-  const archiveResult = archiveSource(root, sourceFile, inbox);
-  if (archiveResult.error) return archiveResult;
-  results.archived = archiveResult.archived;
+    // Step 3: Append log
+    // Mark before writing so a partially failed append is restored too.
+    state.logUpdated = true;
+    const logResult = appendLog(root, `${title} | ${sourceFile}`);
+    if (logResult.error) throw new Error(logResult.error);
 
-  results.status = "ingested";
-  return results;
+    // Step 4: Archive source
+    const archiveResult = archiveSource(root, sourceFile, normalizedInbox);
+    if (archiveResult.error) throw new Error(archiveResult.error);
+
+    return {
+      status: "ingested",
+      page: pageResult.pagePath,
+      indexUpdated: true,
+      logEntry: `ingest | ${title}`,
+      archived: archiveResult.archived,
+    };
+  } catch (e) {
+    const rollbackErrors = rollbackIngest(state);
+    const error = `Ingest failed: ${e.message}`;
+    return rollbackErrors.length ? { error, rollbackErrors } : { error };
+  }
 }
 
 module.exports = { ingestSource };

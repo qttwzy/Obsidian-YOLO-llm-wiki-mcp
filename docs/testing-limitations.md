@@ -1,67 +1,52 @@
 # Testing Limitations
 
-Functions that cannot be covered by unit tests and the reasons why.
+This suite separates deterministic file-logic tests from integrations that require a running Obsidian process, the YOLO plugin, and its real PGlite schema.
 
-## Network-dependent
+## Runtime-gated tests
 
-| Function | Location | Reason |
-|----------|----------|--------|
-| `embedTexts` | `lib/embed.js` | Requires external Embedding API (HTTP). Unit tests should not depend on network. |
+| Function | Location | Why it is gated |
+|----------|----------|-----------------|
+| `obsidianEval` | `lib/pglite.js` | Requires the Obsidian CLI to reach a running Obsidian instance. |
+| `checkYoloStatus` | `lib/pglite.js` | Requires the YOLO plugin to be loaded in that instance. |
+| `queryPgliteStatus` | `lib/pglite.js` | Reads YOLO's live PGlite state. |
+| `readEmbedding` | `lib/pglite.js` | Reads records through either the legacy SQL adapter or modern vector-store adapter. The modern API does not expose content or an embedding preview, so those fields are `null`. |
+| `queryWikiChunks` | `lib/pglite.js` | Runs a live similarity query against YOLO's active vector store. |
+| `embedViaYolo` | `lib/pglite.js` | Requires a YOLO version with a compatible embedding provider. |
 
-## Conditionally testable (Obsidian running)
+The corresponding Node tests call `t.skip()` when this runtime is unavailable, so a skipped test is visible in test output rather than counted as a passing integration check. A default `npm test` started from the repository usually does not name a live vault and may therefore skip these checks.
 
-| Function | Location | Reason |
-|----------|----------|--------|
-| `obsidianEval` | `lib/pglite.js` | Tested when Obsidian is running with YOLO plugin. Skipped otherwise. |
-| `checkYoloStatus` | `lib/pglite.js` | Same — skipped when Obsidian unavailable. |
-| `queryPgliteStatus` | `lib/pglite.js` | Same. |
-| `readEmbedding` | `lib/pglite.js` | Same. |
-| `embedViaYolo` | `lib/pglite.js` | Same. |
+## Operations needing a disposable vault
 
-## Obsidian runtime-dependent (untestable)
+| Function | Location | Why it is not part of the default test run |
+|----------|----------|---------------------------------------------|
+| `createEmbedding` | `lib/pglite.js` | Inserts records into YOLO's PGlite database. The YOLO 1.6.5 vector-store branch has not yet been exercised destructively. |
+| `updateEmbedding` | `lib/pglite.js` | Replaces records in YOLO's PGlite database. The YOLO 1.6.5 vector-store branch has not yet been exercised destructively. |
+| `deleteEmbedding` | `lib/pglite.js` | Deletes records from YOLO's PGlite database. The YOLO 1.6.5 vector-store branch has not yet been exercised destructively. |
+| `buildStore` / `updateEntry` | `lib/page-store.js` | Require YOLO embeddings and mutate a vault's page-store cache. |
 
-| Function | Location | Reason |
-|----------|----------|--------|
-| `tryObsidianEval` | `lib/pglite.js` | Internal function, depends on Obsidian eval CLI output parsing. |
-| `chunkSearch` | `tools/search.js` | Calls queryWikiChunks → tryObsidianEval. |
+Run these against a disposable vault, never a user's production vault.
 
-## PGlite write operations (side-effect concern)
+## Still missing fixture coverage
 
-| Function | Location | Reason |
-|----------|----------|--------|
-| `createEmbedding` | `lib/pglite.js` | INSERT into production PGlite database. Test data mixes with real data. |
-| `updateEmbedding` | `lib/pglite.js` | DELETE + INSERT into production PGlite database. |
-| `deleteEmbedding` | `lib/pglite.js` | DELETE from production PGlite database. |
+| Area | Missing coverage |
+|------|------------------|
+| Modern write adapter | `createEmbedding`, `updateEmbedding`, and `deleteEmbedding` against a disposable YOLO 1.6.5 vault. |
+| Cache adapter | `tryCacheQuery` against a cache produced by the current YOLO version. |
+| End-to-end workflow | Ingestion, embedding, graph update, and search in one disposable vault. |
 
-## Cost-prohibitive
+## Persistence and concurrency
 
-| Function | Location | Reason |
-|----------|----------|--------|
-| `buildStore` | `lib/page-store.js` | Embedding 100+ pages via external API — too slow and burns API quota. |
-| `updateEntry` | `lib/page-store.js` | Same reason — requires embedding API call. |
+Whole-file state writes use atomic replacement to prevent readers from observing a partially truncated JSON or Markdown file. `ingest_source` also restores its page, index, and log if a later local step fails. Neither mechanism provides a durable crash-recovery journal, a cross-process read-modify-write transaction, or a writer lock: abrupt process termination and concurrent MCP processes can still leave conflicting logical updates.
 
-## Destructive to production data
+## Recommended integration check
 
-| Function | Location | Reason |
-|----------|----------|--------|
-| `handleUpdateGraph(semanticChange=true)` | `tools/graph.js` | Deletes edges, rewrites `wiki_graph.json`. Non-reversible. |
+Start Obsidian with YOLO enabled and run the read-only regression against the intended vault:
 
-## Cache-dependent
+```bash
+VAULT_ROOT="/absolute/path/to/vault" \
+OBSIDIAN_CLI_PATH="/usr/local/bin/obsidian" \
+YOLO_LIVE_TEST_VAULT="VaultName" \
+node --test tests/test-pglite.test.js
+```
 
-| Function | Location | Reason |
-|----------|----------|--------|
-| `tryCacheQuery` | `lib/pglite.js` | Requires `.source-tracker/yolo_db_cache/` directory populated. May not exist. |
-
-## Pipeline functions (require pre-built data)
-
-| Function | Location | Reason |
-|----------|----------|--------|
-| `lintFull` | `tools/lint.js` | Requires both `wiki_graph.json` and `page_embeddings.json` pre-built. |
-| `graphLint` | `tools/lint.js` | Requires loaded graph with edges. |
-| `structuralInsights` | `tools/lint.js` | Requires graph with nodes and type information. |
-
-## Notes
-
-- Functions listed above are tested via **integration testing** — run the MCP server in a real Claude Code session with a connected vault.
-- The ~75% unit test coverage is the practical ceiling for this project given its architecture.
-- When a test-safe embedding API mock becomes feasible (e.g., local Ollama), `buildStore` and `updateEntry` tests can be added.
+The suite does not set `YOLO_LIVE_EMBED_TEST=1` by default, so it does not make a potentially remote embedding-provider request. Enable that flag only when such a request is intended. Exercise PGlite write tools only in a disposable vault.

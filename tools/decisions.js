@@ -3,6 +3,7 @@
 const fs = require("fs");
 const path = require("path");
 const { VAULT_ROOT } = require("../lib/config");
+const { atomicWriteFileSync } = require("../lib/fs-utils");
 
 function getDecisionsPath(vaultRoot) {
   return path.join(vaultRoot || VAULT_ROOT, "wiki", "decisions.md");
@@ -19,7 +20,7 @@ function readDecisionsFile(vaultRoot) {
 
 function writeDecisionsFile(content, vaultRoot) {
   const decisionsPath = getDecisionsPath(vaultRoot);
-  fs.writeFileSync(decisionsPath, content, "utf-8");
+  atomicWriteFileSync(decisionsPath, content);
 }
 
 /**

@@ -307,12 +307,12 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     },
     {
       name: "ingest_source",
-      description: "Ingest a source file into the wiki: create wiki page → update index.md → append log.md → archive to raw/. Best-effort four-step operation (no rollback on partial failure).",
+      description: "Ingest a regular source file from the declared inbox: create wiki page → update index.md → append log.md → archive to raw/. Windows path separators are normalized. On a later local failure, restore the page, index, and log.",
       inputSchema: {
         type: "object",
         properties: {
-          sourceFile: { type: "string", description: "Source file path relative to vault root (e.g. 'Clippings/article.md')" },
-          inbox: { type: "string", description: "Inbox folder name (e.g. 'Clippings')" },
+          sourceFile: { type: "string", description: "Regular source file path relative to the vault root and inside inbox (e.g. 'Clippings/article.md')" },
+          inbox: { type: "string", description: "Inbox folder path relative to the vault root (e.g. 'Clippings')" },
           type: { type: "string", enum: ["entity", "concept", "synthesis"], description: "Wiki page type" },
           title: { type: "string", description: "Page title" },
           content: { type: "string", description: "Full page content (Markdown, optionally with frontmatter)" },

@@ -24,7 +24,8 @@ node --test     # unit tests only
 server.js           # MCP server entry point
 lib/                # Core libraries (stateless)
   config.js         # Vault discovery & path validation
-  embed.js          # Embedding API client
+  embed.js          # Cosine similarity helpers
+  fs-utils.js       # Atomic whole-file replacement helper
   graph.js          # Wiki graph construction
   page-store.js     # Page embedding store
   pglite.js         # YOLO PGlite integration
@@ -40,7 +41,7 @@ tools/              # MCP tool handlers (thin wrappers)
   init-wiki.js      # LLM-Wiki skeleton init
   discover.js       # Inbox config + source discovery
   ingest.js         # Source ingestion
-tests/              # 98 unit tests (10 files)
+tests/              # Node test suite; runtime integrations skip when unavailable
 ```
 
 ## Coding conventions

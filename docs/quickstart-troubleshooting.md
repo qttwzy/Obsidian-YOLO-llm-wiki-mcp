@@ -39,13 +39,24 @@ npm install --registry https://registry.npmjs.org/
 
 | 现象                                                            | 原因                       | 解决                      |
 | ------------------------------------------------------------- | ------------------------ | ----------------------- |
-| `build_page_store` 正常但 `query_pglite_status` 返回 `unavailable` | Obsidian CLI 未安装或不在 PATH | 在 Obsidian 设置中启用 CLI 支持 |
+| `build_page_store` 正常但 `query_pglite_status` 返回 `unavailable` | Obsidian CLI 未安装、不在 PATH，或 Obsidian/YOLO 未运行 | 在 Obsidian 设置中启用 CLI 支持，并启动 Obsidian |
 
 ```bash
 # 验证 CLI 可用
 which obsidian        # macOS/Linux
 where obsidian        # Windows
 # 应返回 obsidian 可执行文件路径
+```
+
+macOS 上从桌面应用启动的 MCP 宿主可能不会继承终端的 `PATH`。这时在 MCP 配置的 `env` 中设置绝对路径：
+
+```json
+{
+  "env": {
+    "VAULT_ROOT": "/Users/you/Documents/Obsidian/MyVault",
+    "OBSIDIAN_CLI_PATH": "/usr/local/bin/obsidian"
+  }
+}
 ```
 
 > **注意**：PGlite 相关工具（`query_pglite_status`、`update_pglite_embedding`）和 Embedding 相关工具（`build_page_store`、`search_wiki` 语义通道）需要 Obsidian 运行中 + YOLO 插件已加载。Grep 搜索和图分析工具不依赖 Obsidian。
@@ -63,7 +74,7 @@ where obsidian        # Windows
 ### 1.1 标准安装
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/qttwzy/Obsidian-YOLO-llm-wiki-mcp.git
 cd Obsidian-YOLO-llm-wiki-mcp
 npm install
 ```
@@ -107,7 +118,8 @@ npm config delete https-proxy
       "command": "node",
       "args": ["D:/Obsidian/AI/mcp/server.js"],
       "env": {
-        "VAULT_ROOT": "D:/Obsidian/AI"
+        "VAULT_ROOT": "D:/Obsidian/AI",
+        "OBSIDIAN_CLI_PATH": "C:/path/to/obsidian"
       }
     }
   }
@@ -125,7 +137,25 @@ npm config delete https-proxy
       "command": "node",
       "args": ["D:/Obsidian/AI/mcp/server.js"],
       "env": {
-        "VAULT_ROOT": "D:/Obsidian/AI"
+        "VAULT_ROOT": "D:/Obsidian/AI",
+        "OBSIDIAN_CLI_PATH": "C:/path/to/obsidian"
+      }
+    }
+  }
+}
+```
+
+#### macOS
+
+```json
+{
+  "mcpServers": {
+    "llm-wiki": {
+      "command": "node",
+      "args": ["/Users/you/Documents/my-projects/Obsidian-YOLO-llm-wiki-mcp/server.js"],
+      "env": {
+        "VAULT_ROOT": "/Users/you/Documents/Obsidian/MyVault",
+        "OBSIDIAN_CLI_PATH": "/usr/local/bin/obsidian"
       }
     }
   }
@@ -222,7 +252,7 @@ cd Obsidian-YOLO-llm-wiki-mcp
 npm test
 ```
 
-预期输出：`98 pass / 0 fail`（PGlite 测试在 Obsidian 未运行时会自动跳过）。
+预期没有失败。依赖运行中的 Obsidian + YOLO 的 PGlite 用例在该运行时不可用时会明确显示为 `skipped`；这些跳过不代表真实 PGlite 集成已通过验证。
 
 ### 3.3 客户端无响应
 
@@ -244,10 +274,23 @@ npm test
 
 | 现象                                           | 排查                       |
 | -------------------------------------------- | ------------------------ |
-| `"available": false`                         | Obsidian 未运行或 YOLO 插件未加载 |
-| `"available": true, "source": "pglite_live"` | 成功                       |
+| `"available": false`, `YOLO plugin not loaded` | Obsidian 未运行，或 YOLO 未安装/启用 |
+| `"available": false`, `database manager ... not initialized` | YOLO 数据库尚未初始化，等待插件完成启动后重试 |
+| `"available": false`, `database API ... unsupported` | YOLO 私有数据库 API 发生版本漂移，需要更新适配器 |
+| `"available": true, "source": "pglite_live"` | 成功；`api` 会是 `legacy_pg_client` 或 `vector_store` |
 
-### 4.2 决策流程
+### 4.2 macOS + YOLO 只读集成测试
+
+```bash
+VAULT_ROOT="/Users/you/Documents/Obsidian/MyVault" \
+OBSIDIAN_CLI_PATH="/usr/local/bin/obsidian" \
+YOLO_LIVE_TEST_VAULT="MyVault" \
+node --test tests/test-pglite.test.js
+```
+
+这会验证状态、统计、记录读取和相似度查询。默认不会设置 `YOLO_LIVE_EMBED_TEST=1`，因此不会主动请求可能使用远程服务的 Embedding provider。PGlite 创建、更新和删除必须在 disposable vault 中另行验证。
+
+### 4.3 决策流程
 
 ```
 → create_decision { "situation": "测试", "options": [{"label":"A","action":"测试","consequence":"无"}] }

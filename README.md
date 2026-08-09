@@ -28,12 +28,12 @@ LLM 遇到矛盾或不确定的信息时，不会自行判断，而是创建结�
 
 #### 4. YOLO PGlite 双策略集成
 
-优先通过 `obsidian eval` CLI 实时查询 Obsidian 中 YOLO 插件的 PGlite 向量库；Obsidian 未运行时自动回退到本地缓存的 PGlite 数据库，确保搜索始终可用。
+优先通过 `obsidian eval` CLI 实时查询 Obsidian 中 YOLO 插件的 PGlite 向量库；当前兼容旧版 `dbManager.pgClient` 和 YOLO 1.6.5 的 `VectorManager`/vector-store 两条私有适配路径。Obsidian 未运行时，只有当前 vault 存在兼容的本地缓存才会回退；否则 PGlite 语义通道不可用，但 Grep 搜索仍可用。两条实时路径都依赖 YOLO 私有运行时对象，升级 YOLO 后应重新运行集成测试。
 ![YOLO PGlite 双策略集成](docs/images/pglite-fallback.svg)
 
-#### 5. 零外部依赖
+#### 5. 精简依赖与 YOLO 托管 Embedding
 
-仅 2 个 npm 依赖（`@modelcontextprotocol/sdk` + `@electric-sql/pglite`）。Embedding 完全由 YOLO 插件提供，不引入任何外部 API 依赖——没有 OpenAI，没有 Qwen API，没有第三方向量计算服务。Obsidian + YOLO 就是全部运行时需求。
+项目仅直接安装 2 个 npm 依赖（`@modelcontextprotocol/sdk` + `@electric-sql/pglite`），也不直接保存 Embedding provider 的 API key。向量计算委托给 YOLO；YOLO 最终使用本地模型还是远程服务，取决于用户在插件中的 provider 配置。
 
 ```
 ┌─────────────────────────────────────────────────┐
@@ -43,7 +43,7 @@ LLM 遇到矛盾或不确定的信息时，不会自行判断，而是创建结�
 │  @modelcontextprotocol/sdk  (MCP 协议)          │
 │  @electric-sql/pglite       (缓存回退)           │
 ├─────────────────────────────────────────────────┤
-│  npm 依赖 = 2              |  外部服务依赖 = 0    │
+│  npm 直接依赖 = 2          |  Embedding provider 由 YOLO 配置 │
 └─────────────────────────────────────────────────┘
 ```
 
@@ -72,13 +72,16 @@ LLM 遇到矛盾或不确定的信息时，不会自行判断，而是创建结�
 | `create_decision`         | 创建带可选项的决策条目                        |
 | `resolve_decision`        | 选择选项以解决决策                          |
 | `correct_decision`        | 对已解决的决策添加修正                        |
+| `finalize_correction`     | 完成修正并恢复为已解决状态                      |
 | `delete_pglite_embedding` | 从 YOLO PGlite 删除嵌入记录               |
 | `query_pglite_status`     | 查询 YOLO PGlite 数据库状态与统计            |
+
+`ingest_source` 只接受声明收件箱内的普通源文件，并兼容 `/` 与 Windows `\` 分隔符。若后续本地步骤失败，它会补偿恢复新页面、索引和日志；这不等同于跨进程事务或崩溃恢复日志。
 
 ### 安装
 
 ```bash
-git clone https://github.com/<user>/Obsidian-YOLO-llm-wiki-mcp.git
+git clone https://github.com/qttwzy/Obsidian-YOLO-llm-wiki-mcp.git
 cd Obsidian-YOLO-llm-wiki-mcp
 npm install
 ```
@@ -89,11 +92,14 @@ npm install
 
 设置环境变量：
 
-| 变量           | 必需  | 说明                                    |
-| ------------ | --- | ------------------------------------- |
-| `VAULT_ROOT` | 否   | Obsidian 知识库的绝对路径，默认为包的 `../../` 相对路径 |
+| 变量                | 必需  | 说明                                                                                     |
+| ----------------- | --- | -------------------------------------------------------------------------------------- |
+| `VAULT_ROOT`      | 否   | Obsidian 知识库的绝对路径，默认为包的 `../../` 相对路径                                              |
+| `OBSIDIAN_CLI_PATH` | 否   | Obsidian CLI 路径，默认 `obsidian`。macOS 的 GUI/MCP 宿主 PATH 找不到 CLI 时，设置绝对路径，例如 `/usr/local/bin/obsidian`。 |
 
-> **无需外部 API 密钥。** Embedding 由 YOLO 插件在 Obsidian 内部计算。
+> 本项目不直接配置或保存 Embedding API 密钥。Embedding 由 YOLO 统一调用；YOLO provider 是否需要密钥取决于你的插件配置。
+
+当前已在 macOS arm64、Obsidian CLI 和 YOLO 1.6.5 上验证只读状态、统计、记录读取与相似度查询。PGlite 创建、更新和删除仍应只在 disposable vault 中验证。
 
 #### YOLO 插件
 
@@ -110,14 +116,15 @@ YOLO 内置 MCP 客户端，可在插件设置中直接添加此服务器，无�
   "command": "node",
   "args": ["/path/to/Obsidian-YOLO-llm-wiki-mcp/server.js"],
   "env": {
-    "VAULT_ROOT": "/path/to/your/obsidian/vault"
+    "VAULT_ROOT": "/path/to/your/obsidian/vault",
+    "OBSIDIAN_CLI_PATH": "/usr/local/bin/obsidian"
   }
 }
 ```
 
 5. 点击 **Save**，服务器自动连接
 
-> `args` 和 `env` 中的路径请替换为你实际的 vault 和 mcp 目录路径。
+> `args` 和 `env` 中的路径请替换为你实际的 vault 和 mcp 目录路径。Windows 上可省略 `OBSIDIAN_CLI_PATH`，或填入本机 Obsidian CLI 的绝对路径。
 
 #### Claude Code / Cursor / Windsurf
 
@@ -130,7 +137,8 @@ YOLO 内置 MCP 客户端，可在插件设置中直接添加此服务器，无�
       "command": "node",
       "args": ["/path/to/Obsidian-YOLO-llm-wiki-mcp/server.js"],
       "env": {
-        "VAULT_ROOT": "/path/to/your/obsidian/vault"
+        "VAULT_ROOT": "/path/to/your/obsidian/vault",
+        "OBSIDIAN_CLI_PATH": "/usr/local/bin/obsidian"
       }
     }
   }
@@ -148,7 +156,8 @@ YOLO 内置 MCP 客户端，可在插件设置中直接添加此服务器，无�
       "command": "node",
       "args": ["/path/to/Obsidian-YOLO-llm-wiki-mcp/server.js"],
       "env": {
-        "VAULT_ROOT": "/path/to/your/obsidian/vault"
+        "VAULT_ROOT": "/path/to/your/obsidian/vault",
+        "OBSIDIAN_CLI_PATH": "/usr/local/bin/obsidian"
       }
     }
   }
@@ -192,19 +201,20 @@ server.js
 │   └── ingest.js      # 源文件录入
 └── lib/
     ├── config.js      # VAULT_ROOT 解析 + 文件遍历
-    ├── embed.js       # Embedding API 客户端 + 余弦相似度
+    ├── embed.js       # 余弦相似度工具
+    ├── fs-utils.js    # 整文件原子替换工具
     ├── page-store.js  # 页面向量存储读写搜索
     ├── graph.js       # 图构建（wikilinks、sources、4-signal 权重）
     ├── resolver.js    # Wikilink 解析
     ├── relevance.js   # 动态权重计算（hub 惩罚、稀缺奖励、叠加奖励）
-    └── pglite.js      # YOLO PGlite 集成（实时 + 缓存回退）
+    └── pglite.js      # YOLO 私有 legacy/vector-store 适配 + 缓存回退
 ```
 
 #### 搜索通道
 
 1. **Grep** — 对 `wiki/*.md` 执行关键词匹配（纯 Node.js，零外部依赖）
 2. **页面向量** — 对 `.source-tracker/page_embeddings.json` 执行余弦相似度计算
-3. **PGlite 分块** — 查询 YOLO 的 PGlite 向量数据库（通过 `obsidian eval` 实时查询或使用缓存的 tar.gz）
+3. **PGlite 分块** — 通过 `obsidian eval` 调用 YOLO 私有 legacy/vector-store 适配；实时运行时不可用时，仅使用当前 vault 的兼容缓存
 
 结果会合并、去重并按分数排序。
 
@@ -216,14 +226,19 @@ server.js
 2. 用户在 Obsidian 中选择选项（`[ ]` → `[x]`）或通过对话选择
 3. `resolve_decision` — 将条目从待处理移至已解决
 4. `correct_decision` — 如果用户改变主意，添加修正块
+5. `finalize_correction` — 选择最终方案或自定义结果，完成修正
 
 ### 开发
 
 ```bash
-npm test              # ESLint + 98 个单元测试
+npm test              # ESLint + Node 测试套件（YOLO 运行时用例在不可用时显示为 skipped）
 npm run lint          # 仅 ESLint
 node --test           # 仅运行测试
 ```
+
+### YOLO Modules 接入
+
+当前项目不能原样迁入 YOLO Module 运行时，但可以抽取纯文件逻辑并构建一个轻量的 Module UI/命令层。能力边界、官方分发限制和推荐架构见 [YOLO Modules 接入评估](docs/yolo-modules-integration.md)。
 
 ### 致谢
 
@@ -261,12 +276,12 @@ When the LLM encounters conflicting or uncertain information, it doesn't guess �
 
 #### 4. YOLO PGlite Dual-Strategy Integration
 
-Primarily queries YOLO's PGlite vector database in real-time via the `obsidian eval` CLI when Obsidian is running; automatically falls back to a local cached PGlite database when Obsidian is unavailable, ensuring search always works.
+Primarily queries YOLO's PGlite vector database in real time via the `obsidian eval` CLI. It supports both the legacy `dbManager.pgClient` path and YOLO 1.6.5's private `VectorManager`/vector-store path. When Obsidian is unavailable, it uses a cache only when a compatible cache exists for the current vault. Otherwise the PGlite semantic channel is unavailable, while grep search remains available. Both live adapters depend on private YOLO runtime objects, so rerun integration tests after a YOLO upgrade.
 ![YOLO PGlite Dual-Strategy Integration](docs/images/pglite-fallback.svg)
 
-#### 5. Zero External Dependencies
+#### 5. Lean Dependencies and YOLO-Managed Embedding
 
-Only 2 npm dependencies (`@modelcontextprotocol/sdk` + `@electric-sql/pglite`). Embedding is entirely handled by the YOLO plugin — no external API: no OpenAI, no Qwen API, no third-party vector computation service. Obsidian + YOLO is all you need at runtime.
+The project directly installs only two npm dependencies (`@modelcontextprotocol/sdk` and `@electric-sql/pglite`) and does not store embedding-provider API keys itself. Embedding is delegated to YOLO; whether YOLO uses a local model or a remote service depends on the provider configured by the user.
 
 ```
 ┌─────────────────────────────────────────────────┐
@@ -276,7 +291,7 @@ Only 2 npm dependencies (`@modelcontextprotocol/sdk` + `@electric-sql/pglite`). 
 │  @modelcontextprotocol/sdk   (MCP protocol)     │
 │  @electric-sql/pglite        (cache fallback)    │
 ├─────────────────────────────────────────────────┤
-│  npm deps = 2               |  external deps = 0  │
+│  direct npm deps = 2        |  provider configured in YOLO │
 └─────────────────────────────────────────────────┘
 ```
 
@@ -305,13 +320,16 @@ Supports single-page vector incremental updates (`update_page_store`), so editin
 | `create_decision`         | Create a decision entry with selectable options                                                 |
 | `resolve_decision`        | Resolve a decision by selecting an option                                                       |
 | `correct_decision`        | Add a correction to a previously resolved decision                                              |
+| `finalize_correction`     | Complete a correction and return it to resolved status                                          |
 | `delete_pglite_embedding` | Delete embedding records from YOLO's PGlite database                                            |
 | `query_pglite_status`     | Query YOLO PGlite database status and statistics                                                |
+
+`ingest_source` accepts only regular source files inside the declared inbox and normalizes both `/` and Windows `\` separators. If a later local step fails, it restores the new page, index, and log; this is not a cross-process transaction or durable crash-recovery journal.
 
 ### Install
 
 ```bash
-git clone https://github.com/<user>/Obsidian-YOLO-llm-wiki-mcp.git
+git clone https://github.com/qttwzy/Obsidian-YOLO-llm-wiki-mcp.git
 cd Obsidian-YOLO-llm-wiki-mcp
 npm install
 ```
@@ -322,11 +340,14 @@ npm install
 
 Set environment variables:
 
-| Variable     | Required | Description                                                                         |
-| ------------ | -------- | ----------------------------------------------------------------------------------- |
-| `VAULT_ROOT` | No       | Absolute path to your Obsidian vault. Defaults to `../../` relative to the package. |
+| Variable            | Required | Description                                                                                                          |
+| ------------------- | -------- | -------------------------------------------------------------------------------------------------------------------- |
+| `VAULT_ROOT`        | No       | Absolute path to your Obsidian vault. Defaults to `../../` relative to the package.                                 |
+| `OBSIDIAN_CLI_PATH` | No       | Obsidian CLI path; defaults to `obsidian`. Set an absolute path such as `/usr/local/bin/obsidian` when a macOS GUI/MCP host does not inherit your shell PATH. |
 
-> **No external API keys needed.** Embedding is computed by the YOLO plugin inside Obsidian.
+> This project does not configure or store embedding API keys. YOLO owns the embedding call; whether its provider needs a key depends on your YOLO configuration.
+
+Read-only status, statistics, record lookup, and similarity search have been verified on macOS arm64 with the Obsidian CLI and YOLO 1.6.5. PGlite create, update, and delete operations should still be validated only in a disposable vault.
 
 #### YOLO Plugin
 
@@ -343,14 +364,15 @@ YOLO has a built-in MCP client. Add this server directly in the plugin settings 
   "command": "node",
   "args": ["/path/to/Obsidian-YOLO-llm-wiki-mcp/server.js"],
   "env": {
-    "VAULT_ROOT": "/path/to/your/obsidian/vault"
+    "VAULT_ROOT": "/path/to/your/obsidian/vault",
+    "OBSIDIAN_CLI_PATH": "/usr/local/bin/obsidian"
   }
 }
 ```
 
 5. Click **Save** — the server connects automatically
 
-> Adjust paths in `args` and `env` to match your actual vault and mcp directories.
+> Adjust paths in `args` and `env` to match your actual vault and MCP directories. On Windows, omit `OBSIDIAN_CLI_PATH` or set it to the absolute path of your local Obsidian CLI.
 
 #### Claude Code / Cursor / Windsurf
 
@@ -363,7 +385,8 @@ Add to your MCP config (e.g. `.claude/mcp.json`):
       "command": "node",
       "args": ["/path/to/Obsidian-YOLO-llm-wiki-mcp/server.js"],
       "env": {
-        "VAULT_ROOT": "/path/to/your/obsidian/vault"
+        "VAULT_ROOT": "/path/to/your/obsidian/vault",
+        "OBSIDIAN_CLI_PATH": "/usr/local/bin/obsidian"
       }
     }
   }
@@ -381,7 +404,8 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
       "command": "node",
       "args": ["/path/to/Obsidian-YOLO-llm-wiki-mcp/server.js"],
       "env": {
-        "VAULT_ROOT": "/path/to/your/obsidian/vault"
+        "VAULT_ROOT": "/path/to/your/obsidian/vault",
+        "OBSIDIAN_CLI_PATH": "/usr/local/bin/obsidian"
       }
     }
   }
@@ -425,19 +449,20 @@ server.js
 │   └── ingest.js      # Source file ingestion
 └── lib/
     ├── config.js      # VAULT_ROOT resolution + file traversal
-    ├── embed.js       # Embedding API client + cosine similarity
+    ├── embed.js       # Cosine similarity helpers
+    ├── fs-utils.js    # Atomic whole-file replacement helper
     ├── page-store.js  # Page embedding store read/write/search
     ├── graph.js       # Graph construction (wikilinks, sources, 4-signal weights)
     ├── resolver.js    # Wikilink resolution
     ├── relevance.js   # Dynamic weighting (hub penalty, rarity bonus, reinforcement)
-    └── pglite.js      # YOLO PGlite integration (live + cache fallback)
+    └── pglite.js      # Private YOLO legacy/vector-store adapters + cache fallback
 ```
 
 #### Search Channels
 
 1. **Grep** — pure Node.js keyword matching on `wiki/*.md` (zero external deps)
 2. **Page embeddings** — cosine similarity on `.source-tracker/page_embeddings.json`
-3. **PGlite chunks** — queries YOLO's PGlite vector database (live via `obsidian eval` or cached tar.gz)
+3. **PGlite chunks** — calls private YOLO legacy/vector-store adapters via `obsidian eval`, or uses a compatible cache belonging to the same vault
 
 Results are merged, deduplicated, and ranked by score.
 
@@ -449,14 +474,19 @@ When the LLM encounters conflicting or uncertain information during ingestion or
 2. User picks an option in Obsidian (`[ ]` → `[x]`) or via conversation
 3. `resolve_decision` — moves the entry from pending to resolved
 4. `correct_decision` — adds a correction block if the user changes their mind
+5. `finalize_correction` — selects a final outcome and completes the correction
 
 ### Development
 
 ```bash
-npm test              # ESLint + 98 unit tests
+npm test              # ESLint + Node test suite (YOLO runtime tests skip when unavailable)
 npm run lint          # ESLint only
 node --test           # run tests only
 ```
+
+### YOLO Modules integration
+
+The project cannot be moved unchanged into the YOLO Module runtime, but its portable file logic can support a lightweight Module UI/command layer. See [YOLO Modules integration assessment](docs/yolo-modules-integration.md) for capability boundaries, distribution constraints, and the recommended architecture.
 
 ### Acknowledgments
 

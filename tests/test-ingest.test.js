@@ -61,6 +61,14 @@ describe("set_inbox_folders", () => {
     const r = handleSetInboxFolders({ action: "invalid" });
     assert.ok(r.error);
   });
+
+  it("returns an error for an unknown vault name instead of using the default vault", () => {
+    const result = handleSetInboxFolders({
+      action: "list",
+      vault: `missing-vault-${Date.now()}`,
+    });
+    assert.match(result.error, /^Unknown vault:/);
+  });
 });
 
 describe("discover_sources", () => {
@@ -108,10 +116,17 @@ describe("discover_sources", () => {
     const result = discoverSources(tmpDir);
     assert.ok(result.error);
   });
+
+  it("returns an error for an unknown vault name", () => {
+    const result = discoverSources(`missing-vault-${Date.now()}`);
+    assert.match(result.error, /^Unknown vault:/);
+    assert.deepStrictEqual(result.newFiles, []);
+    assert.strictEqual(result.totalNew, 0);
+  });
 });
 
 describe("ingest_source", () => {
-  it("atomically ingests a source file", () => {
+  it("ingests a source file and archives it", () => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "ingest-test-"));
     initWiki(tmpDir);
 
@@ -154,6 +169,19 @@ describe("ingest_source", () => {
       summary: "Test",
     });
     assert.ok(result.error);
+  });
+
+  it("returns an error for an unknown vault name", () => {
+    const result = ingestSource({
+      sourceFile: "Sources/source.md",
+      inbox: "Sources",
+      type: "entity",
+      title: "Unknown Vault",
+      content: "# Unknown Vault",
+      summary: "must not use the default vault",
+      vault: `missing-vault-${Date.now()}`,
+    });
+    assert.match(result.error, /^Unknown vault:/);
   });
 
   it("returns error for invalid type", () => {
@@ -208,5 +236,287 @@ describe("ingest_source", () => {
     });
     assert.strictEqual(result.status, "ingested");
     assert.ok(result.page.includes("untitled-"), `expected untitled- slug, got ${result.page}`);
+  });
+
+  it("rolls back page, index, and log when the archive step fails", () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "ingest-rollback-"));
+    initWiki(tmpDir);
+    const srcDir = path.join(tmpDir, "Sources");
+    fs.mkdirSync(srcDir, { recursive: true });
+    const sourcePath = path.join(srcDir, "rollback.md");
+    fs.writeFileSync(sourcePath, "# Rollback\ncontent.", "utf-8");
+
+    const indexPath = path.join(tmpDir, "index.md");
+    const logPath = path.join(tmpDir, "wiki", "log.md");
+    const indexBefore = fs.readFileSync(indexPath, "utf-8");
+    const logBefore = fs.readFileSync(logPath, "utf-8");
+
+    fs.rmSync(path.join(tmpDir, "raw"), { recursive: true, force: true });
+    fs.writeFileSync(path.join(tmpDir, "raw"), "not a directory", "utf-8");
+
+    const result = ingestSource({
+      sourceFile: "Sources/rollback.md",
+      inbox: "Sources",
+      type: "entity",
+      title: "Rollback Entity",
+      content: "# Rollback Entity",
+      summary: "must not persist after failure",
+      vault: tmpDir,
+    });
+
+    assert.ok(result.error);
+    assert.ok(fs.existsSync(sourcePath));
+    assert.ok(!fs.existsSync(path.join(tmpDir, "wiki", "entities", "Rollback Entity.md")));
+    assert.strictEqual(fs.readFileSync(indexPath, "utf-8"), indexBefore);
+    assert.strictEqual(fs.readFileSync(logPath, "utf-8"), logBefore);
+  });
+
+  it("rolls back the new page when the matching index section is missing", () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "ingest-index-rollback-"));
+    initWiki(tmpDir);
+    const srcDir = path.join(tmpDir, "Sources");
+    fs.mkdirSync(srcDir, { recursive: true });
+    const sourcePath = path.join(srcDir, "index-error.md");
+    fs.writeFileSync(sourcePath, "# Index error\ncontent.", "utf-8");
+
+    const indexPath = path.join(tmpDir, "index.md");
+    const logPath = path.join(tmpDir, "wiki", "log.md");
+    fs.writeFileSync(indexPath, "# Corrupt index\n", "utf-8");
+    const indexBefore = fs.readFileSync(indexPath, "utf-8");
+    const logBefore = fs.readFileSync(logPath, "utf-8");
+
+    const result = ingestSource({
+      sourceFile: "Sources/index-error.md",
+      inbox: "Sources",
+      type: "entity",
+      title: "Index Failure Entity",
+      content: "# Index Failure Entity",
+      summary: "must not persist without an index section",
+      vault: tmpDir,
+    });
+
+    assert.ok(result.error);
+    assert.ok(fs.existsSync(sourcePath));
+    assert.ok(!fs.existsSync(path.join(tmpDir, "wiki", "entities", "Index Failure Entity.md")));
+    assert.strictEqual(fs.readFileSync(indexPath, "utf-8"), indexBefore);
+    assert.strictEqual(fs.readFileSync(logPath, "utf-8"), logBefore);
+  });
+
+  it("rejects source files outside the vault", () => {
+    const parentDir = fs.mkdtempSync(path.join(os.tmpdir(), "ingest-traversal-"));
+    const tmpDir = path.join(parentDir, "vault");
+    fs.mkdirSync(tmpDir);
+    initWiki(tmpDir);
+    const outsidePath = path.join(parentDir, "outside.md");
+    fs.writeFileSync(outsidePath, "# Outside\nmust stay outside.", "utf-8");
+
+    const result = ingestSource({
+      sourceFile: "../outside.md",
+      inbox: "Sources",
+      type: "entity",
+      title: "Outside Entity",
+      content: "# Outside Entity",
+      summary: "must not be ingested",
+      vault: tmpDir,
+    });
+
+    assert.match(result.error, /outside vault root/);
+    assert.ok(fs.existsSync(outsidePath));
+    assert.ok(!fs.existsSync(path.join(tmpDir, "wiki", "entities", "Outside Entity.md")));
+    assert.ok(!fs.existsSync(path.join(tmpDir, "raw", "Sources", "outside.md")));
+  });
+
+  it("rejects vault files outside the declared inbox", () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "ingest-wrong-inbox-"));
+    initWiki(tmpDir);
+    const sourcePath = path.join(tmpDir, "index.md");
+    const indexBefore = fs.readFileSync(sourcePath, "utf-8");
+    const logPath = path.join(tmpDir, "wiki", "log.md");
+    const logBefore = fs.readFileSync(logPath, "utf-8");
+
+    const result = ingestSource({
+      sourceFile: "index.md",
+      inbox: "Sources",
+      type: "entity",
+      title: "Protected Index",
+      content: "# Protected Index",
+      summary: "must not archive project state",
+      vault: tmpDir,
+    });
+
+    assert.match(result.error, /outside declared inbox/);
+    assert.strictEqual(fs.readFileSync(sourcePath, "utf-8"), indexBefore);
+    assert.strictEqual(fs.readFileSync(logPath, "utf-8"), logBefore);
+    assert.ok(!fs.existsSync(path.join(tmpDir, "wiki", "entities", "Protected Index.md")));
+    assert.ok(!fs.existsSync(path.join(tmpDir, "raw", "Sources", "index.md")));
+  });
+
+  it("rejects source paths that leave the inbox through a symlink", (t) => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "ingest-inbox-symlink-"));
+    initWiki(tmpDir);
+    const srcDir = path.join(tmpDir, "Sources");
+    fs.mkdirSync(srcDir, { recursive: true });
+    try {
+      fs.symlinkSync(path.join(tmpDir, "wiki"), path.join(srcDir, "wiki-link"), "dir");
+    } catch (e) {
+      t.skip(`symlinks unavailable: ${e.message}`);
+      return;
+    }
+
+    const logPath = path.join(tmpDir, "wiki", "log.md");
+    const logBefore = fs.readFileSync(logPath, "utf-8");
+    const result = ingestSource({
+      sourceFile: "Sources/wiki-link/log.md",
+      inbox: "Sources",
+      type: "entity",
+      title: "Symlink Escape",
+      content: "# Symlink Escape",
+      summary: "must not archive a file outside the resolved inbox",
+      vault: tmpDir,
+    });
+
+    assert.match(result.error, /resolves outside declared inbox/);
+    assert.strictEqual(fs.readFileSync(logPath, "utf-8"), logBefore);
+    assert.ok(!fs.existsSync(path.join(tmpDir, "wiki", "entities", "Symlink Escape.md")));
+  });
+
+  it("rejects an archive root symlink that resolves outside the vault", (t) => {
+    const parentDir = fs.mkdtempSync(path.join(os.tmpdir(), "ingest-archive-symlink-"));
+    const tmpDir = path.join(parentDir, "vault");
+    const outsideRaw = path.join(parentDir, "outside-raw");
+    fs.mkdirSync(tmpDir);
+    fs.mkdirSync(outsideRaw);
+    initWiki(tmpDir);
+    fs.rmSync(path.join(tmpDir, "raw"), { recursive: true });
+    try {
+      fs.symlinkSync(outsideRaw, path.join(tmpDir, "raw"), "dir");
+    } catch (e) {
+      t.skip(`symlinks unavailable: ${e.message}`);
+      return;
+    }
+    const srcDir = path.join(tmpDir, "Sources");
+    fs.mkdirSync(srcDir);
+    const sourcePath = path.join(srcDir, "archive-escape.md");
+    fs.writeFileSync(sourcePath, "# Archive escape", "utf-8");
+
+    const indexPath = path.join(tmpDir, "index.md");
+    const logPath = path.join(tmpDir, "wiki", "log.md");
+    const indexBefore = fs.readFileSync(indexPath, "utf-8");
+    const logBefore = fs.readFileSync(logPath, "utf-8");
+    const result = ingestSource({
+      sourceFile: "Sources/archive-escape.md",
+      inbox: "Sources",
+      type: "entity",
+      title: "Archive Escape",
+      content: "# Archive Escape",
+      summary: "must not write outside the vault",
+      vault: tmpDir,
+    });
+
+    assert.match(result.error, /Archive root resolves outside vault root/);
+    assert.ok(fs.existsSync(sourcePath));
+    assert.ok(!fs.existsSync(path.join(outsideRaw, "Sources", "archive-escape.md")));
+    assert.ok(!fs.existsSync(path.join(tmpDir, "wiki", "entities", "Archive Escape.md")));
+    assert.strictEqual(fs.readFileSync(indexPath, "utf-8"), indexBefore);
+    assert.strictEqual(fs.readFileSync(logPath, "utf-8"), logBefore);
+  });
+
+  it("rejects directories as source files", () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "ingest-directory-"));
+    initWiki(tmpDir);
+    const sourceDir = path.join(tmpDir, "Sources", "directory");
+    fs.mkdirSync(sourceDir, { recursive: true });
+
+    const result = ingestSource({
+      sourceFile: "Sources/directory",
+      inbox: "Sources",
+      type: "entity",
+      title: "Directory Entity",
+      content: "# Directory Entity",
+      summary: "must remain a directory",
+      vault: tmpDir,
+    });
+
+    assert.match(result.error, /regular file/);
+    assert.ok(fs.existsSync(sourceDir));
+    assert.ok(!fs.existsSync(path.join(tmpDir, "wiki", "entities", "Directory Entity.md")));
+    assert.ok(!fs.existsSync(path.join(tmpDir, "raw", "Sources", "directory")));
+  });
+
+  it("normalizes Windows-style source paths", () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "ingest-win-path-"));
+    initWiki(tmpDir);
+    const srcDir = path.join(tmpDir, "Sources", "Nested");
+    fs.mkdirSync(srcDir, { recursive: true });
+    fs.writeFileSync(path.join(srcDir, "windows.md"), "# Windows path\ncontent.", "utf-8");
+
+    const result = ingestSource({
+      sourceFile: "Sources\\Nested\\windows.md",
+      inbox: "Sources\\Nested",
+      type: "entity",
+      title: "Windows Path Entity",
+      content: "# Windows Path Entity",
+      summary: "portable source path",
+      vault: tmpDir,
+    });
+
+    assert.strictEqual(result.status, "ingested");
+    assert.strictEqual(result.archived, "raw/Nested/windows.md");
+    assert.ok(fs.existsSync(path.join(tmpDir, "raw", "Nested", "windows.md")));
+  });
+
+  it("removes a partial cross-device archive when deleting the source fails", () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "ingest-exdev-rollback-"));
+    initWiki(tmpDir);
+    const srcDir = path.join(tmpDir, "Sources");
+    fs.mkdirSync(srcDir, { recursive: true });
+    const sourcePath = path.join(srcDir, "cross-device.md");
+    const archivePath = path.join(tmpDir, "raw", "Sources", "cross-device.md");
+    fs.writeFileSync(sourcePath, "# Cross-device\ncontent.", "utf-8");
+
+    const indexPath = path.join(tmpDir, "index.md");
+    const logPath = path.join(tmpDir, "wiki", "log.md");
+    const indexBefore = fs.readFileSync(indexPath, "utf-8");
+    const logBefore = fs.readFileSync(logPath, "utf-8");
+    const originalRenameSync = fs.renameSync;
+    const originalUnlinkSync = fs.unlinkSync;
+
+    fs.renameSync = (from, to) => {
+      if (from === sourcePath && to === archivePath) {
+        const error = new Error("cross-device move");
+        error.code = "EXDEV";
+        throw error;
+      }
+      return originalRenameSync(from, to);
+    };
+    fs.unlinkSync = (target) => {
+      if (target === sourcePath) {
+        throw new Error("cannot remove source");
+      }
+      return originalUnlinkSync(target);
+    };
+
+    let result;
+    try {
+      result = ingestSource({
+        sourceFile: "Sources/cross-device.md",
+        inbox: "Sources",
+        type: "entity",
+        title: "Cross-device Entity",
+        content: "# Cross-device Entity",
+        summary: "must roll back a partial copy",
+        vault: tmpDir,
+      });
+    } finally {
+      fs.renameSync = originalRenameSync;
+      fs.unlinkSync = originalUnlinkSync;
+    }
+
+    assert.match(result.error, /cannot remove source/);
+    assert.ok(fs.existsSync(sourcePath));
+    assert.ok(!fs.existsSync(archivePath));
+    assert.ok(!fs.existsSync(path.join(tmpDir, "wiki", "entities", "Cross-device Entity.md")));
+    assert.strictEqual(fs.readFileSync(indexPath, "utf-8"), indexBefore);
+    assert.strictEqual(fs.readFileSync(logPath, "utf-8"), logBefore);
   });
 });

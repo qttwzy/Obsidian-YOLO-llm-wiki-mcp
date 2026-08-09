@@ -6,6 +6,7 @@ const { loadStore } = require("../lib/page-store");
 const { cosineSimilarity } = require("../lib/embed");
 const { VAULT_ROOT } = require("../lib/config");
 const { getResolvedOutLinks } = require("../lib/resolver");
+const { atomicWriteFileSync } = require("../lib/fs-utils");
 
 function getSkippedPath(vaultRoot) {
   return path.join(vaultRoot || VAULT_ROOT, ".source-tracker", "skipped_connections.json");
@@ -95,7 +96,7 @@ function markSkipped(slugA, slugB, vaultRoot) {
     skippedAt: new Date().toISOString(),
   });
 
-  fs.writeFileSync(skippedPath, JSON.stringify(data, null, 2), "utf-8");
+  atomicWriteFileSync(skippedPath, JSON.stringify(data, null, 2));
   return { status: "skipped", a: slugA, b: slugB };
 }
 
@@ -106,9 +107,9 @@ function updateLintTimestamp(vaultRoot) {
   const lastLintPath = getLastLintPath(vaultRoot);
   const dir = path.dirname(lastLintPath);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(lastLintPath, JSON.stringify({
+  atomicWriteFileSync(lastLintPath, JSON.stringify({
     lastLint: new Date().toISOString(),
-  }), "utf-8");
+  }));
 }
 
 /**

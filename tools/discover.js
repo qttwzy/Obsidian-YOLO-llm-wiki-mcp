@@ -2,7 +2,8 @@
 
 const fs = require("fs");
 const path = require("path");
-const { VAULT_ROOT } = require("../lib/config");
+const { VAULT_ROOT, resolveVaultRoot } = require("../lib/config");
+const { atomicWriteFileSync } = require("../lib/fs-utils");
 
 function getConfigPath(vaultRoot) {
   return path.join(vaultRoot || VAULT_ROOT, ".source-tracker", "inbox-config.json");
@@ -18,7 +19,7 @@ function saveConfig(config, vaultRoot) {
   const p = getConfigPath(vaultRoot);
   const dir = path.dirname(p);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(p, JSON.stringify(config, null, 2), "utf-8");
+  atomicWriteFileSync(p, JSON.stringify(config, null, 2));
 }
 
 /**
@@ -28,7 +29,12 @@ function saveConfig(config, vaultRoot) {
  */
 function handleSetInboxFolders(args) {
   const { vault: vaultParam, action, paths } = args;
-  const root = vaultParam || VAULT_ROOT;
+  let root;
+  try {
+    root = resolveVaultRoot(vaultParam);
+  } catch (e) {
+    return { error: e.message };
+  }
   const config = loadConfig(root);
 
   switch (action) {
@@ -76,7 +82,12 @@ function handleSetInboxFolders(args) {
  * @returns {{ newFiles: Array<{path, inbox, size, mtime}>, totalNew: number }}
  */
 function discoverSources(vaultRoot) {
-  const root = vaultRoot || VAULT_ROOT;
+  let root;
+  try {
+    root = resolveVaultRoot(vaultRoot);
+  } catch (e) {
+    return { error: e.message, newFiles: [], totalNew: 0 };
+  }
   const config = loadConfig(root);
 
   if (!config.inboxFolders.length) {

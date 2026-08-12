@@ -2,6 +2,8 @@
 
 const { describe, it, before } = require("node:test");
 const assert = require("node:assert/strict");
+const os = require("node:os");
+const path = require("node:path");
 
 const {
   obsidianEval,
@@ -66,9 +68,10 @@ describe("obsidianEval", () => {
 
 describe("PGlite cache paths", () => {
   it("keeps each absolute vault's fallback cache inside that vault", () => {
+    const vaultRoot = path.join(os.tmpdir(), "llm-wiki-second-vault");
     assert.equal(
-      getCacheDir("/tmp/llm-wiki-second-vault"),
-      "/tmp/llm-wiki-second-vault/.source-tracker/yolo_db_cache"
+      getCacheDir(vaultRoot),
+      path.join(vaultRoot, ".source-tracker", "yolo_db_cache")
     );
   });
 });

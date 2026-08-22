@@ -5,6 +5,24 @@ const path = require("path");
 const { VAULT_ROOT } = require("../lib/config");
 const { atomicWriteFileSync } = require("../lib/fs-utils");
 
+// Mirrors DECISIONS_SKELETON in tools/init-wiki.js (kept in sync) so
+// createDecision can restore a missing/empty/header-less decisions.md
+// without requiring init_wiki to have run first.
+const DECISIONS_SKELETON = `---
+type: log
+---
+
+# 决策日志
+
+## 待决 (pending)
+
+_(当前无待决条目)_
+
+## 已决 (resolved)
+
+_(当前无已决条目)_
+`;
+
 function getDecisionsPath(vaultRoot) {
   return path.join(vaultRoot || VAULT_ROOT, "wiki", "decisions.md");
 }
@@ -188,15 +206,36 @@ function createDecision({ id, situation, options, vaultRoot }) {
   const entry = `\n### ${decId} | ${date}\n**情境**: ${situation}\n\n${optionsBlock}\n- [ ] __________ _(自定义：写下你的决定)_\n`;
 
   const pendingHeader = "## 待决 (pending)";
+  const resolvedHeader = "## 已决 (resolved)";
   const placeholder = "_(当前无待决条目)_";
 
+  // When decisions.md is missing/empty or has lost its "## 待决 (pending)"
+  // header, raw.indexOf(pendingHeader) is -1 and the entry used to be spliced
+  // in at a bogus offset (-1 + header.length), producing a header-less file
+  // that made every later parseDecisions throw ("file may be corrupt").
+  // Restore the skeleton first so the entry always lands under a proper
+  // pending header.
+  let base = raw;
+  if (!base.includes(pendingHeader)) {
+    if (base.includes(resolvedHeader)) {
+      // Pending section header lost — rebuild it before the resolved section.
+      base = base.replace(
+        resolvedHeader,
+        `${pendingHeader}\n\n${placeholder}\n\n${resolvedHeader}`
+      );
+    } else {
+      // Missing or empty decisions.md — start from the standard skeleton.
+      base = DECISIONS_SKELETON;
+    }
+  }
+
   let newRaw;
-  if (raw.includes(placeholder)) {
-    newRaw = raw.replace(placeholder, entry.trimStart());
+  if (base.includes(placeholder)) {
+    newRaw = base.replace(placeholder, entry.trimStart());
   } else {
-    const pendingIdx = raw.indexOf(pendingHeader);
+    const pendingIdx = base.indexOf(pendingHeader);
     const afterHeader = pendingIdx + pendingHeader.length;
-    newRaw = raw.slice(0, afterHeader) + entry + raw.slice(afterHeader);
+    newRaw = base.slice(0, afterHeader) + entry + base.slice(afterHeader);
   }
 
   writeDecisionsFile(newRaw, vaultRoot);
@@ -242,18 +281,33 @@ function resolveDecision({ id, option, customText, vaultRoot }) {
   let newBlock = dec.raw;
 
   if (option) {
-    const optLetter = option.toUpperCase();
+    // Single-letter validation doubles as RegExp escaping: a validated A-Z
+    // character cannot inject metacharacters into the pattern below.
+    if (!/^[A-Z]$/.test(option)) {
+      return { error: `Invalid option '${option}': must be a single letter A-Z` };
+    }
+    const before = newBlock;
     newBlock = newBlock.replace(
-      new RegExp(`- \\[ \\]\\s*\\*\\*${optLetter}\\.`),
-      `- [x] **${optLetter}.`
+      new RegExp(`- \\[ \\]\\s*\\*\\*${option}\\.`),
+      `- [x] **${option}.`
     );
+    // An unchanged block means the option letter does not exist in this entry.
+    // Bail out before any file write so the entry stays in pending instead of
+    // being moved to resolved with the user's choice silently dropped.
+    if (newBlock === before) {
+      return { error: `Option ${option} not found in decision ${id}` };
+    }
   }
 
   if (customText) {
+    const before = newBlock;
     newBlock = newBlock.replace(
       /- \[ \] _{10,}.*自定义：写下你的决定\)_/,
       `- [x] __________ ${customText}`
     );
+    if (newBlock === before) {
+      return { error: `Custom decision line not found in decision ${id}` };
+    }
   }
 
   const date = new Date().toISOString().slice(0, 10);
@@ -350,18 +404,30 @@ function finalizeCorrection({ id, option, customText, vaultRoot }) {
   let newBlock = dec.raw;
 
   if (option) {
-    const optLetter = option.toUpperCase();
+    // Same validation/hit-check as resolveDecision: a missing option must
+    // error out instead of finalizing with the user's choice dropped.
+    if (!/^[A-Z]$/.test(option)) {
+      return { error: `Invalid option '${option}': must be a single letter A-Z` };
+    }
+    const before = newBlock;
     newBlock = newBlock.replace(
-      new RegExp(`- \\[ \\]\\s*\\*\\*${optLetter}\\.`),
-      `- [x] **${optLetter}.`
+      new RegExp(`- \\[ \\]\\s*\\*\\*${option}\\.`),
+      `- [x] **${option}.`
     );
+    if (newBlock === before) {
+      return { error: `Option ${option} not found in decision ${id}` };
+    }
   }
 
   if (customText) {
+    const before = newBlock;
     newBlock = newBlock.replace(
       /- \[ \] _{10,}.*自定义\)_/,
       `- [x] __________ ${customText}`
     );
+    if (newBlock === before) {
+      return { error: `Custom decision line not found in decision ${id}` };
+    }
   }
 
   // Change header from "🔄 修正中" to "✅ date".

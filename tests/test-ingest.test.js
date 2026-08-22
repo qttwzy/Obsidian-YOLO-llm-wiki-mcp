@@ -520,3 +520,50 @@ describe("ingest_source", () => {
     assert.strictEqual(fs.readFileSync(logPath, "utf-8"), logBefore);
   });
 });
+
+describe("index table structure across consecutive ingests", () => {
+  it("keeps the table header above data rows and updates the page count", () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "ingest-index-struct-"));
+    initWiki(tmpDir);
+    handleSetInboxFolders({ action: "set", paths: ["Sources"], vault: tmpDir });
+    const srcDir = path.join(tmpDir, "Sources");
+    fs.mkdirSync(srcDir, { recursive: true });
+    fs.writeFileSync(path.join(srcDir, "one.md"), "# One", "utf-8");
+    fs.writeFileSync(path.join(srcDir, "two.md"), "# Two", "utf-8");
+
+    // Two consecutive ingests: the first consumes the | _(暂无)_ | placeholder,
+    // the second must append after the last table row instead of landing
+    // between the section header and the table header.
+    for (const [file, title] of [["one.md", "Entity One"], ["two.md", "Entity Two"]]) {
+      const result = ingestSource({
+        sourceFile: `Sources/${file}`,
+        inbox: "Sources",
+        type: "entity",
+        title,
+        content: `# ${title}`,
+        summary: `summary for ${title}`,
+        vault: tmpDir,
+      });
+      assert.strictEqual(result.status, "ingested");
+    }
+
+    const index = fs.readFileSync(path.join(tmpDir, "index.md"), "utf-8");
+    const sectionStart = index.indexOf("## 实体 (entities/)");
+    assert.ok(sectionStart >= 0, "entities section must exist");
+    const nextSection = index.indexOf("\n## ", sectionStart);
+    const section = index.slice(sectionStart, nextSection >= 0 ? nextSection : index.length);
+
+    // Page count in the section header must track the added rows: 0 页 → 2 页.
+    assert.match(section, /^## 实体 \(entities\/\) — 2 页$/m);
+
+    // Table header and separator must precede both data rows.
+    const tableHeaderIdx = section.indexOf("| 页面 | 摘要 | 状态 |");
+    const separatorIdx = section.indexOf("|------");
+    const rowOneIdx = section.indexOf("[[entities/Entity One]]");
+    const rowTwoIdx = section.indexOf("[[entities/Entity Two]]");
+    assert.ok(tableHeaderIdx >= 0, "table header must exist");
+    assert.ok(separatorIdx > tableHeaderIdx, "separator must follow the table header");
+    assert.ok(rowOneIdx > separatorIdx, "Entity One row must be below the separator");
+    assert.ok(rowTwoIdx > rowOneIdx, "Entity Two row must be appended after Entity One");
+  });
+});

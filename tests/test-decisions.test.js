@@ -275,3 +275,161 @@ describe("finalizeCorrection", () => {
     assert.match(result.error, /not found/);
   });
 });
+
+describe("createDecision skeleton restore (missing/empty/header-less decisions.md)", () => {
+  /** Temp vault whose wiki/decisions.md is only written when seed !== undefined. */
+  function makeBareVault(seed) {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "dec-skel-"));
+    fs.mkdirSync(path.join(tmpDir, "wiki"), { recursive: true });
+    if (seed !== undefined) {
+      fs.writeFileSync(path.join(tmpDir, "wiki", "decisions.md"), seed, "utf-8");
+    }
+    return tmpDir;
+  }
+
+  const opts = [{ label: "A", action: "x", consequence: "y" }];
+
+  it("creates decisions.md from the skeleton when the file is missing", () => {
+    const tmpDir = makeBareVault(); // no decisions.md at all
+    const created = createDecision({
+      id: "DEC-001",
+      situation: "s",
+      options: opts,
+      vaultRoot: tmpDir,
+    });
+    assert.strictEqual(created.status, "created");
+
+    const raw = fs.readFileSync(path.join(tmpDir, "wiki", "decisions.md"), "utf-8");
+    assert.ok(raw.includes("## 待决 (pending)"));
+    assert.ok(raw.includes("## 已决 (resolved)"));
+
+    // listDecisions must parse the new file without throwing.
+    const after = listDecisions({ vaultRoot: tmpDir });
+    assert.strictEqual(after.summary.pendingCount, 1);
+    assert.strictEqual(after.pending[0].id, "DEC-001");
+  });
+
+  it("bootstraps an empty decisions.md", () => {
+    const tmpDir = makeBareVault("");
+    const created = createDecision({
+      id: "DEC-001",
+      situation: "s",
+      options: opts,
+      vaultRoot: tmpDir,
+    });
+    assert.strictEqual(created.status, "created");
+
+    const after = listDecisions({ vaultRoot: tmpDir });
+    assert.strictEqual(after.summary.pendingCount, 1);
+    assert.strictEqual(after.pending[0].id, "DEC-001");
+  });
+
+  it("restores the pending section header when only the resolved header exists", () => {
+    // Regression: pendingIdx === -1 spliced the entry in at a bogus offset,
+    // producing a header-less file that made every later parse throw.
+    const tmpDir = makeBareVault("## 已决 (resolved)\n\n_(当前无已决条目)_\n");
+    const created = createDecision({
+      id: "DEC-001",
+      situation: "s",
+      options: opts,
+      vaultRoot: tmpDir,
+    });
+    assert.strictEqual(created.status, "created");
+
+    const raw = fs.readFileSync(path.join(tmpDir, "wiki", "decisions.md"), "utf-8");
+    const pendingIdx = raw.indexOf("## 待决 (pending)");
+    const resolvedIdx = raw.indexOf("## 已决 (resolved)");
+    assert.ok(pendingIdx >= 0, "pending header must be restored");
+    assert.ok(pendingIdx < resolvedIdx, "pending section must precede resolved");
+
+    const after = listDecisions({ vaultRoot: tmpDir });
+    assert.strictEqual(after.summary.pendingCount, 1);
+    assert.strictEqual(after.pending[0].id, "DEC-001");
+  });
+});
+
+describe("resolveDecision option/customText miss (silent no-op fix)", () => {
+  const opts = [
+    { label: "A", action: "yes", consequence: "good" },
+    { label: "B", action: "no", consequence: "bad" },
+  ];
+
+  it("returns error and leaves the file untouched when the option letter does not exist", () => {
+    const tmpDir = makeTempVault();
+    createDecision({ id: "DEC-001", situation: "s", options: opts, vaultRoot: tmpDir });
+    const decPath = path.join(tmpDir, "wiki", "decisions.md");
+    const before = fs.readFileSync(decPath, "utf-8");
+
+    const result = resolveDecision({ id: "DEC-001", option: "Z", vaultRoot: tmpDir });
+    assert.ok(result.error);
+    assert.match(result.error, /Option Z not found/);
+
+    // File unchanged; entry still pending (not silently moved to resolved).
+    assert.strictEqual(fs.readFileSync(decPath, "utf-8"), before);
+    const after = listDecisions({ vaultRoot: tmpDir });
+    assert.ok(after.pending.find((d) => d.id === "DEC-001"), "entry must stay in pending");
+    assert.strictEqual(
+      after.resolved.find((d) => d.id === "DEC-001"),
+      undefined,
+      "entry must not be moved to resolved"
+    );
+  });
+
+  it("rejects option values that are not a single A-Z letter", () => {
+    const tmpDir = makeTempVault();
+    createDecision({ id: "DEC-001", situation: "s", options: opts, vaultRoot: tmpDir });
+
+    for (const bad of ["A]", "AB", "a"]) {
+      const result = resolveDecision({ id: "DEC-001", option: bad, vaultRoot: tmpDir });
+      assert.ok(result.error, `option '${bad}' must be rejected`);
+      assert.match(result.error, /single letter A-Z/);
+    }
+
+    const after = listDecisions({ vaultRoot: tmpDir });
+    assert.strictEqual(after.summary.pendingCount, 1);
+  });
+
+  it("returns error when the custom decision line does not match", () => {
+    // Entry deliberately has no "_(自定义：写下你的决定)_" line.
+    const tmpDir = makeTempVault(
+      "## 待决 (pending)\n\n### DEC-001 | 2026-01-01\n**情境**: no custom line\n\n- [ ] **A. yes** — good\n\n## 已决 (resolved)\n\n_(当前无已决条目)_\n"
+    );
+    const decPath = path.join(tmpDir, "wiki", "decisions.md");
+    const before = fs.readFileSync(decPath, "utf-8");
+
+    const result = resolveDecision({
+      id: "DEC-001",
+      customText: "my own choice",
+      vaultRoot: tmpDir,
+    });
+    assert.ok(result.error);
+    assert.match(result.error, /Custom decision line not found/);
+    assert.strictEqual(fs.readFileSync(decPath, "utf-8"), before);
+  });
+
+  it("finalizeCorrection errors and keeps the correcting block when the option does not exist", () => {
+    const tmpDir = makeTempVault();
+    createDecision({ id: "DEC-001", situation: "s", options: opts, vaultRoot: tmpDir });
+    resolveDecision({ id: "DEC-001", option: "A", vaultRoot: tmpDir });
+    correctDecision({
+      id: "DEC-001",
+      originalDecision: "chose A",
+      correctionReason: "A was wrong",
+      options: [{ label: "B", action: "switch", consequence: "better" }],
+      vaultRoot: tmpDir,
+    });
+    const decPath = path.join(tmpDir, "wiki", "decisions.md");
+    const before = fs.readFileSync(decPath, "utf-8");
+
+    const result = finalizeCorrection({ id: "DEC-001", option: "Z", vaultRoot: tmpDir });
+    assert.ok(result.error);
+    assert.match(result.error, /Option Z not found/);
+    assert.strictEqual(fs.readFileSync(decPath, "utf-8"), before);
+
+    const after = listDecisions({ status: "resolved", vaultRoot: tmpDir });
+    assert.ok(
+      after.resolved.find((d) => d.id === "DEC-001" && d.isCorrecting),
+      "block must remain in correcting state"
+    );
+  });
+});

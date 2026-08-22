@@ -53,7 +53,7 @@ function updateIndex(root, type, slug, title, summary, status) {
     return { error: `Index section not found: ${sectionHeader}` };
   }
 
-  // Replace the placeholder row (if present) or append before next section
+  // Replace the placeholder row (if present) or append after the last table row
   const placeholder = `| _(暂无)_ |`;
   const nextSectionIdx = content.indexOf("\n## ", sectionIdx + sectionHeader.length);
   const sectionEnd = nextSectionIdx >= 0 ? nextSectionIdx : content.length;
@@ -64,9 +64,35 @@ function updateIndex(root, type, slug, title, summary, status) {
       sectionContent.replace(placeholder, row) +
       content.slice(sectionEnd);
   } else {
-    // Append after section header
-    const afterHeader = content.indexOf("\n", sectionIdx) + 1;
-    content = content.slice(0, afterHeader) + "\n" + row + "\n" + content.slice(afterHeader);
+    // Append after the LAST table row in this section (bottom-up search from
+    // sectionEnd for the previous line starting with "|"). The old behavior
+    // inserted right after the section header, so once the placeholder row
+    // had been consumed the new row landed ABOVE the table header/separator.
+    const lastRowStart = content.lastIndexOf("\n|", sectionEnd - 1);
+    if (lastRowStart >= sectionIdx) {
+      const lineEnd = content.indexOf("\n", lastRowStart + 1);
+      const insertAt = lineEnd >= 0 && lineEnd <= sectionEnd ? lineEnd : sectionEnd;
+      content = content.slice(0, insertAt) + "\n" + row + content.slice(insertAt);
+    } else {
+      // Degenerate section with no table rows at all — append after the header.
+      const afterHeader = content.indexOf("\n", sectionIdx) + 1;
+      content = content.slice(0, afterHeader) + "\n" + row + "\n" + content.slice(afterHeader);
+    }
+  }
+
+  // Keep the "— N 页" page count in the section header in sync. Both insertion
+  // points above are strictly after the header line, so sectionIdx stays valid.
+  const headerLineEnd = content.indexOf("\n", sectionIdx);
+  const headerLine = content.slice(
+    sectionIdx,
+    headerLineEnd >= 0 ? headerLineEnd : content.length
+  );
+  const countedHeader = headerLine.replace(
+    /^(.*? — )(\d+)( 页)$/,
+    (m, p1, p2) => `${p1}${Number(p2) + 1} 页`
+  );
+  if (countedHeader !== headerLine) {
+    content = content.slice(0, sectionIdx) + countedHeader + content.slice(sectionIdx + headerLine.length);
   }
 
   atomicWriteFileSync(indexPath, content);

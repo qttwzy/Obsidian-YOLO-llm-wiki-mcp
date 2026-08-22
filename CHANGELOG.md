@@ -4,6 +4,15 @@
 
 ### Fixes
 
+- Make `create_decision` bootstrap the decisions.md skeleton (pending header or full init-wiki template) when the file is missing, empty, or headerless, instead of writing a malformed file that permanently breaks every decisions tool.
+- Make `resolve_decision` and `finalize_correction` return an error and leave the file byte-identical when the option letter or custom-text replacement does not match, instead of silently moving an unresolved block into the resolved section; option values are now validated as a single letter A-Z, closing the RegExp-injection face.
+- Fix `updateIndex` to append new rows after the last table row inside each section (the fallback path inserted rows above the table header once the placeholder was consumed) and to increment the "— N 页" page counts.
+
+### Known issues
+
+- `customText` is passed as the string replacement argument to `String.replace`, so `$&`-style replacement patterns in the text alter the written line; escape `$` as `$$` or switch to a function replacement before relying on literal `$` in custom decisions.
+- `DECISIONS_SKELETON` is duplicated in `tools/decisions.js` and `tools/init-wiki.js` (currently byte-identical, kept in sync by comment only); export it from one module to prevent drift.
+
 - Isolate the PGlite fallback cache by vault so a live-query failure for one vault cannot read another vault's cache.
 - Support `OBSIDIAN_CLI_PATH` for GUI-hosted MCP clients whose PATH does not include the Obsidian CLI.
 - Support both legacy `dbManager.pgClient` and YOLO 1.6.5's private `VectorManager`/vector-store runtime, and report plugin, database initialization, and unsupported-API failures accurately.

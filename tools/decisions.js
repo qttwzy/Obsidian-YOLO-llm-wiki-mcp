@@ -3,7 +3,7 @@
 const fs = require("fs");
 const path = require("path");
 const { VAULT_ROOT } = require("../lib/config");
-const { atomicWriteFileSync } = require("../lib/fs-utils");
+const { atomicWriteFileSync, literalReplace } = require("../lib/fs-utils");
 
 // Mirrors DECISIONS_SKELETON in tools/init-wiki.js (kept in sync) so
 // createDecision can restore a missing/empty/header-less decisions.md
@@ -231,7 +231,7 @@ function createDecision({ id, situation, options, vaultRoot }) {
 
   let newRaw;
   if (base.includes(placeholder)) {
-    newRaw = base.replace(placeholder, entry.trimStart());
+    newRaw = literalReplace(base, placeholder, entry.trimStart());
   } else {
     const pendingIdx = base.indexOf(pendingHeader);
     const afterHeader = pendingIdx + pendingHeader.length;
@@ -301,7 +301,8 @@ function resolveDecision({ id, option, customText, vaultRoot }) {
 
   if (customText) {
     const before = newBlock;
-    newBlock = newBlock.replace(
+    newBlock = literalReplace(
+      newBlock,
       /- \[ \] _{10,}.*自定义：写下你的决定\)_/,
       `- [x] __________ ${customText}`
     );
@@ -318,7 +319,7 @@ function resolveDecision({ id, option, customText, vaultRoot }) {
   let newRaw = removeBlockByBoundary(raw, dec.raw);
   const hasResolvedHeader = newRaw.includes(resolvedHeader);
   if (hasResolvedHeader) {
-    newRaw = newRaw.replace(resolvedHeader, resolvedHeader + resolvedEntry);
+    newRaw = literalReplace(newRaw, resolvedHeader, resolvedHeader + resolvedEntry);
   } else {
     newRaw += "\n" + resolvedHeader + resolvedEntry;
   }
@@ -378,9 +379,9 @@ function correctDecision({ id, originalDecision, correctionReason, options, vaul
   let newRaw;
 
   if (markedRaw.includes(placeholder)) {
-    newRaw = markedRaw.replace(placeholder, correctionBlock.trimStart());
+    newRaw = literalReplace(markedRaw, placeholder, correctionBlock.trimStart());
   } else if (markedRaw.includes(resolvedHeader)) {
-    newRaw = markedRaw.replace(resolvedHeader, resolvedHeader + correctionBlock);
+    newRaw = literalReplace(markedRaw, resolvedHeader, resolvedHeader + correctionBlock);
   } else {
     return { error: "Could not find resolved section" };
   }
@@ -421,7 +422,8 @@ function finalizeCorrection({ id, option, customText, vaultRoot }) {
 
   if (customText) {
     const before = newBlock;
-    newBlock = newBlock.replace(
+    newBlock = literalReplace(
+      newBlock,
       /- \[ \] _{10,}.*自定义\)_/,
       `- [x] __________ ${customText}`
     );
@@ -439,7 +441,8 @@ function finalizeCorrection({ id, option, customText, vaultRoot }) {
   newBlock = newBlock.replace(oldHeaderRe, `### ${id} | ✅ ${date}`);
 
   // Replace the correcting block in raw by boundary.
-  const newRaw = removeBlockByBoundary(raw, dec.raw).replace(
+  const newRaw = literalReplace(
+    removeBlockByBoundary(raw, dec.raw),
     "## 已决 (resolved)",
     "## 已决 (resolved)" + "\n" + newBlock
   );

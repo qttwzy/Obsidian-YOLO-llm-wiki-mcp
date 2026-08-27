@@ -433,3 +433,71 @@ describe("resolveDecision option/customText miss (silent no-op fix)", () => {
     );
   });
 });
+
+describe("literal $ replacement interpolation", () => {
+  const poison = "$& $' $1";
+  const opts = [{ label: "A", action: "x", consequence: "y" }];
+
+  function readDecisionsBytes(vaultRoot) {
+    return fs.readFileSync(path.join(vaultRoot, "wiki", "decisions.md"), "utf-8");
+  }
+
+  it("createDecision writes situation $& $' $1 literally", () => {
+    const tmpDir = makeTempVault();
+    const created = createDecision({
+      id: "DEC-001",
+      situation: poison,
+      options: opts,
+      vaultRoot: tmpDir,
+    });
+    assert.strictEqual(created.status, "created");
+    assert.ok(readDecisionsBytes(tmpDir).includes(poison));
+  });
+
+  it("resolveDecision writes customText $& $' $1 literally", () => {
+    const tmpDir = makeTempVault();
+    createDecision({ id: "DEC-001", situation: "s", options: opts, vaultRoot: tmpDir });
+    const resolved = resolveDecision({
+      id: "DEC-001",
+      customText: poison,
+      vaultRoot: tmpDir,
+    });
+    assert.strictEqual(resolved.status, "resolved");
+    assert.ok(readDecisionsBytes(tmpDir).includes(poison));
+  });
+
+  it("correctDecision writes originalDecision $& $' $1 literally", () => {
+    const tmpDir = makeTempVault();
+    createDecision({ id: "DEC-001", situation: "s", options: opts, vaultRoot: tmpDir });
+    resolveDecision({ id: "DEC-001", option: "A", vaultRoot: tmpDir });
+    const result = correctDecision({
+      id: "DEC-001",
+      originalDecision: poison,
+      correctionReason: "reason",
+      options: [{ label: "B", action: "switch", consequence: "better" }],
+      vaultRoot: tmpDir,
+    });
+    assert.strictEqual(result.status, "correcting");
+    assert.ok(readDecisionsBytes(tmpDir).includes(poison));
+  });
+
+  it("finalizeCorrection writes customText $& $' $1 literally", () => {
+    const tmpDir = makeTempVault();
+    createDecision({ id: "DEC-001", situation: "s", options: opts, vaultRoot: tmpDir });
+    resolveDecision({ id: "DEC-001", option: "A", vaultRoot: tmpDir });
+    correctDecision({
+      id: "DEC-001",
+      originalDecision: "chose A",
+      correctionReason: "A was wrong",
+      options: [{ label: "B", action: "switch", consequence: "better" }],
+      vaultRoot: tmpDir,
+    });
+    const result = finalizeCorrection({
+      id: "DEC-001",
+      customText: poison,
+      vaultRoot: tmpDir,
+    });
+    assert.strictEqual(result.status, "finalized");
+    assert.ok(readDecisionsBytes(tmpDir).includes(poison));
+  });
+});

@@ -28,6 +28,13 @@ npm test
 
 只读 YOLO 回归需要本机 Obsidian + YOLO，并设置 `VAULT_ROOT`、`OBSIDIAN_CLI_PATH`。默认 `npm test` 在无活 vault 时会 skip 运行时用例。
 
+## Issue 驱动开发
+
+- 本仓对应 Plane 项目 `YOLO`，仓内 `#N` 即 `YOLO-N`。开工前必须有工作项编号；没有就先要，或用 `idd new` 建。
+- 分支 `<type>/N-<slug>`；提交首行 Conventional Commits，trailer `Refs: #N`。完整规则见 personal-ops `policies/issue-driven-development.md`。
+- 提交和 PR 里禁止 `closes/fixes/resolves #N`；完成状态按统一政策核验合入证据后回写。
+- 完成后回报改动文件路径和提交号；未经允许不用 `--no-verify`，不直接提交到主干。
+
 ## 交付表述
 
 最终元数据、交接和面向用户的文档、标题、提交说明、PR，必须从已接受的最终状态和权威 diff 推导，而不是从会话历史推导。被否方案和用户纠正只作为控制上下文，除非它们对应真实基线变化，或对安全、兼容、迁移、审计或必要说明有实质需要。当某概念只存在于本次工作会话时，不要用「无 X」「已移除 X」「非 X 版」或同类框架描述已接受结果。提交、发布或开 PR 时按全局 skill `no-negative-echo` 做完整门禁。

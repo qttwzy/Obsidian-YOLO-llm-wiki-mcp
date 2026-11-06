@@ -7,7 +7,7 @@
 - 入口只有 `server.js`。工具无会话内状态：每次从磁盘读、写回。
 - `VAULT_ROOT` 解析顺序：环境变量（绝对路径）→ 从 cwd 向上找 `.obsidian/` → 相对 `lib/config.js` 上两级的旧回退。
 - `ingest_source` 只接受声明收件箱内的普通源文件，兼容 `/` 与 `\`。后续本地步骤失败时补偿恢复新页面、索引和日志；这不是跨进程事务或崩溃恢复日志。
-- 函数向调用方返回 `{ error: "message" }`，不抛出。
+- MCP 工具边界将可预期失败转换为 `{ error: "message" }`；内部校验和路径保护可按现有实现抛出，再由边界统一处理。
 - 路径统一成 `/`；用 `execFileSync` 加参数数组，不用带 shell 字符串的 `execSync`。
 - 用 `assertInsideVault` 防止目录穿越。
 - 不新增除 MCP SDK 与 PGlite 以外的运行时依赖。

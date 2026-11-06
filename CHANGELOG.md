@@ -10,7 +10,6 @@
 
 ### Known issues
 
-- `customText` is passed as the string replacement argument to `String.replace`, so `$&`-style replacement patterns in the text alter the written line; escape `$` as `$$` or switch to a function replacement before relying on literal `$` in custom decisions.
 - `DECISIONS_SKELETON` is duplicated in `tools/decisions.js` and `tools/init-wiki.js` (currently byte-identical, kept in sync by comment only); export it from one module to prevent drift.
 
 - Isolate the PGlite fallback cache by vault so a live-query failure for one vault cannot read another vault's cache.

@@ -86,8 +86,8 @@ npm install
 | `Cannot find module '@modelcontextprotocol/sdk'` | 依赖未安装或 `node_modules` 损坏 | 删掉重装 |
 
 ```bash
-rm -rf node_modules package-lock.json
-npm install
+rm -rf node_modules
+npm ci
 ```
 
 ### 1.3 网络代理问题

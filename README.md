@@ -66,7 +66,7 @@ LLM 遇到矛盾或不确定的信息时，不会自行判断，而是创建结�
 | `update_wiki_graph`       | 编辑页面后增量更新图数据（先 diff 分析，再确认语义变化）    |
 | `update_pglite_embedding` | 创建/更新 YOLO PGlite 嵌入记录             |
 | `search_wiki`             | 三通道并行搜索（grep、页面向量、PGlite 分块）       |
-| `lint_full`               | 双引擎 Lint：向量语义 + 图拓扑分析，输出四类候选对和结构洞见 |
+| `lint_full`               | 双引擎 Lint：向量语义 + 图拓扑分析，输出三类候选对和结构洞见 |
 | `mark_skipped_connection` | 标记误报的检查结果以忽略                       |
 | `list_decisions`          | 列出待处理和已解决的决策                       |
 | `create_decision`         | 创建带可选项的决策条目                        |
@@ -94,7 +94,7 @@ npm install
 
 | 变量                | 必需  | 说明                                                                                     |
 | ----------------- | --- | -------------------------------------------------------------------------------------- |
-| `VAULT_ROOT`      | 否   | Obsidian 知识库的绝对路径，默认为包的 `../../` 相对路径                                              |
+| `VAULT_ROOT`      | 否   | Obsidian 知识库的绝对路径。未设置时，从当前工作目录（含自身）向上查找最近的含 `.obsidian/` 的目录；否则取包内 `lib/` 的上两级目录。 |
 | `OBSIDIAN_CLI_PATH` | 否   | Obsidian CLI 路径，默认 `obsidian`。macOS 的 GUI/MCP 宿主 PATH 找不到 CLI 时，设置绝对路径，例如 `/usr/local/bin/obsidian`。 |
 
 > 本项目不直接配置或保存 Embedding API 密钥。Embedding 由 YOLO 统一调用；YOLO provider 是否需要密钥取决于你的插件配置。
@@ -180,10 +180,12 @@ your-vault/
     ├── wiki_graph.json         # 知识图谱（节点 + 加权边）
     ├── graph_changelog.json    # 图增量更新日志
     ├── skipped_connections.json # 跳过的 Lint 候选对
-    └── last_lint.json          # 最近一次 Lint 时间戳
+    ├── last_lint.json          # 最近一次 Lint 时间戳
+    ├── inbox-config.json       # 收件箱目录配置
+    └── yolo_db_cache/          # YOLO PGlite 回退缓存（按 vault 隔离）
 ```
 
-页面 frontmatter 应包含 `type`、`status`、`sources` 等字段。完整规范见 `schema/llm-wiki-schema.md`。
+页面 frontmatter 应包含 `type`、`status`、`sources` 等字段；各类型页面的字段模板以 `tools/init-wiki.js` 初始化时写入的模板为准。
 
 ### 架构
 
@@ -314,7 +316,7 @@ Supports single-page vector incremental updates (`update_page_store`), so editin
 | `update_wiki_graph`       | Incremental graph update after editing (diff analysis + semantic change confirmation)           |
 | `update_pglite_embedding` | Create or update an embedding record in YOLO's PGlite database                                  |
 | `search_wiki`             | Three-channel parallel search (grep, page embeddings, PGlite chunks)                            |
-| `lint_full`               | Dual-engine lint: vector cosine similarity + graph topology, 4 categories + structural insights |
+| `lint_full`               | Dual-engine lint: vector cosine similarity + graph topology, 3 categories + structural insights |
 | `mark_skipped_connection` | Mark false-positive lint results to ignore them                                                 |
 | `list_decisions`          | List pending and resolved decisions                                                             |
 | `create_decision`         | Create a decision entry with selectable options                                                 |
@@ -342,7 +344,7 @@ Set environment variables:
 
 | Variable            | Required | Description                                                                                                          |
 | ------------------- | -------- | -------------------------------------------------------------------------------------------------------------------- |
-| `VAULT_ROOT`        | No       | Absolute path to your Obsidian vault. Defaults to `../../` relative to the package.                                 |
+| `VAULT_ROOT`        | No       | Absolute path to your Obsidian vault. When unset, the closest directory at or above the working directory containing `.obsidian/`, else two levels up from the package's `lib/` directory. |
 | `OBSIDIAN_CLI_PATH` | No       | Obsidian CLI path; defaults to `obsidian`. Set an absolute path such as `/usr/local/bin/obsidian` when a macOS GUI/MCP host does not inherit your shell PATH. |
 
 > This project does not configure or store embedding API keys. YOLO owns the embedding call; whether its provider needs a key depends on your YOLO configuration.
@@ -428,10 +430,12 @@ your-vault/
     ├── wiki_graph.json         # Knowledge graph (nodes + weighted edges)
     ├── graph_changelog.json    # Graph incremental update log
     ├── skipped_connections.json # Skipped lint candidates
-    └── last_lint.json          # Last lint timestamp
+    ├── last_lint.json          # Last lint timestamp
+    ├── inbox-config.json       # Inbox folder config
+    └── yolo_db_cache/          # Vault-isolated YOLO PGlite fallback cache
 ```
 
-Page frontmatter should include `type`, `status`, `sources`, etc. See `schema/llm-wiki-schema.md` for the full specification.
+Page frontmatter should include `type`, `status`, `sources`, etc.; the per-type field templates are the ones `tools/init-wiki.js` writes at initialization.
 
 ### Architecture
 
@@ -462,7 +466,7 @@ server.js
 
 1. **Grep** — pure Node.js keyword matching on `wiki/*.md` (zero external deps)
 2. **Page embeddings** — cosine similarity on `.source-tracker/page_embeddings.json`
-3. **PGlite chunks** — calls private YOLO legacy/vector-store adapters via `obsidian eval`, or uses a compatible cache belonging to the same vault
+3. **PGlite chunks** — calls private YOLO legacy/vector-store adapters via `obsidian eval`; when the live runtime is unavailable, uses only a compatible cache belonging to the same vault
 
 Results are merged, deduplicated, and ranked by score.
 
@@ -474,7 +478,7 @@ When the LLM encounters conflicting or uncertain information during ingestion or
 2. User picks an option in Obsidian (`[ ]` → `[x]`) or via conversation
 3. `resolve_decision` — moves the entry from pending to resolved
 4. `correct_decision` — adds a correction block if the user changes their mind
-5. `finalize_correction` — selects a final outcome and completes the correction
+5. `finalize_correction` — selects a final option or custom outcome and completes the correction
 
 ### Development
 

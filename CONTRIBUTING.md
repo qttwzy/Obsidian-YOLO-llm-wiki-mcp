@@ -48,7 +48,7 @@ tests/              # Node 测试套件；运行时集成在不可用时 skip
 
 - 每个文件顶部 `"use strict"`
 - CommonJS（`require` / `module.exports`）
-- 函数返回 `{ error: "message" }`，不抛出
+- MCP 工具边界返回 `{ error: "message" }`；内部校验和路径保护遵循现有异常处理链路
 - 运行时依赖仅限 MCP SDK 与 PGlite
 - 路径使用 `/` 分隔符（用 `.replace(/\\/g, "/")` 规范化）
 - 使用带参数数组的 `execFileSync`，不用带 shell 字符串的 `execSync`

@@ -8,10 +8,6 @@
 - Make `resolve_decision` and `finalize_correction` return an error and leave the file byte-identical when the option letter or custom-text replacement does not match, instead of silently moving an unresolved block into the resolved section; option values are now validated as a single letter A-Z, closing the RegExp-injection face.
 - Fix `updateIndex` to append new rows after the last table row inside each section (the fallback path inserted rows above the table header once the placeholder was consumed) and to increment the "— N 页" page counts.
 
-### Known issues
-
-- `DECISIONS_SKELETON` is duplicated in `tools/decisions.js` and `tools/init-wiki.js` (currently byte-identical, kept in sync by comment only); export it from one module to prevent drift.
-
 - Isolate the PGlite fallback cache by vault so a live-query failure for one vault cannot read another vault's cache.
 - Support `OBSIDIAN_CLI_PATH` for GUI-hosted MCP clients whose PATH does not include the Obsidian CLI.
 - Support both legacy `dbManager.pgClient` and YOLO 1.6.5's private `VectorManager`/vector-store runtime, and report plugin, database initialization, and unsupported-API failures accurately.
@@ -22,6 +18,10 @@
 - Restrict `ingest_source` to regular files inside the declared inbox, reject lexical and symlink path escapes, normalize Windows-style source and inbox separators, and remove partial cross-device archive copies after a failed move.
 - Report unavailable Obsidian/YOLO runtime tests as skipped instead of silently passing them.
 - Align README and troubleshooting guidance with the current tools, cache behavior, runtime prerequisites, and YOLO Modules capability boundary.
+
+### Known issues
+
+- `DECISIONS_SKELETON` is duplicated in `tools/decisions.js` and `tools/init-wiki.js` (currently byte-identical, kept in sync by comment only); export it from one module to prevent drift.
 
 ## 3.1.0 (2026-08-06)
 
